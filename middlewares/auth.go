@@ -46,7 +46,17 @@ func JWTMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
+//middleware admin
+func AdminMiddleware() gin.HandlerFunc{
+	return  func(c *gin.Context){
+		role, exits := c.Get("user_role")
+		if !exits || role !="admin"{
+			helpers.ErrorResponse(c,http.StatusForbidden,"Forbidden", "Hanya admin dibenarkan mengakses ini")
+			c.Abort()
+			return 
+		}
+	}
+}
 // OptionalJWTMiddleware middleware yang opsional (tidak wajib ada token)
 func OptionalJWTMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

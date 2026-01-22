@@ -7,6 +7,7 @@ import (
 	"gin-gonic/models"
 	"gin-gonic/routes"
 	"gin-gonic/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ func BootstrapApp() {
 	fmt.Println("Auto migration completed successfully")
 
 	app := gin.Default()
-
+	seedAdmin()
 	// Middleware untuk logging dan recovery
 	app.Use(gin.Logger())
 	app.Use(gin.Recovery())
@@ -94,4 +95,51 @@ func runSmartMigration() error {
 
 	fmt.Println("Database migration completed successfully")
 	return nil
+}
+
+
+func seedAdmin(){
+	adminEmail := helpers.GetConfig("ADMIN_EMAIL")
+	adminPassword := helpers.GetConfig("ADMIN_PASSWORD")
+	adminName := helpers.GetConfig("ADMIN_NAME")
+
+	// validasi env tidak diset
+	if adminEmail =="" ||adminPassword ==""{
+		fmt.Println("seeding skipped: ADMIN_EMAIL or ADMIN_PASSWORD not found in .env")
+	}
+	var count int64
+
+	//cek apakah admin sudah ada
+	database.DB.Model(&models.User{}).Where("role =?", "admin").Count(&count)
+
+	if count == 0{
+		fmt.Println("No admin found. Creating admin from environment variable")
+		//hash password dari env
+		hashedPassword, err := utils.HashPassword(adminPassword)
+		if err != nil{
+			fmt.Printf("Error hashing password : %v\n",err)
+			return
+		}
+		admin := models.User{
+			Name:      adminName,
+			Email:     adminEmail,
+			Password:  hashedPassword,
+			Address:   "System Administrator",
+			Role:      "admin", 
+			BornDate:  time.Now(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+		if err := database.DB.Create(&admin).Error;err!=nil{
+			fmt.Printf("failed to create admin :%v \n",err)
+		}else{
+			fmt.Println("admin account seeded succesfully")
+		}
+
+	
+	
+	}else{
+		fmt.Println("Admin account check: OK (Admin already exists")
+	}
+
 }

@@ -22,10 +22,17 @@ func InitRoute(app *gin.Engine) {
 		protected := api.Group("")
 		protected.Use(middlewares.JWTMiddleware())
 		{
+			// admin only
+			adminOnly := protected.Group("/admin")
+			adminOnly.Use(middlewares.AdminMiddleware())
+			{
+				adminOnly.GET("/stats", user_controllers.GetUserStats)
+				adminOnly.DELETE("/bulk", user_controllers.BulkDeleteUsers)
+			}
 			// Protected user routes
 			protectedUsers := protected.Group("/users")
 			{
-				protectedUsers.GET("/stats", user_controllers.GetUserStats)      // GET /api/v1/users/stats
+				// protectedUsers.GET("/stats", user_controllers.GetUserStats) // GET /api/v1/users/stats
 				protectedUsers.GET("/profile", user_controllers.GetProfile) // GET /api/v1/users/profile
 			}
 		}

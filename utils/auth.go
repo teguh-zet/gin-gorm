@@ -39,6 +39,7 @@ func GenerateJWT(user models.User) (string, error) {
 		"user_id": user.ID,
 		"email":   user.Email,
 		"name":    user.Name,
+		"role":    user.Role,
 		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
 		"iat":     time.Now().Unix(),
 	})
