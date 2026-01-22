@@ -356,7 +356,6 @@ func GetUserStats(c *gin.Context) {
 		NewUsersToday: newUsersToday,
 		LatestUsers:   latestUsers,
 	}
-
 	helpers.SuccessResponse(c, "User statistics", stats)
 }
 
