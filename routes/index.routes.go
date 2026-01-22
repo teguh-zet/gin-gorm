@@ -26,7 +26,6 @@ func InitRoute(app *gin.Engine) {
 			protectedUsers := protected.Group("/users")
 			{
 				protectedUsers.GET("/stats", user_controllers.GetUserStats)      // GET /api/v1/users/stats
-
 				protectedUsers.GET("/profile", user_controllers.GetProfile) // GET /api/v1/users/profile
 			}
 		}

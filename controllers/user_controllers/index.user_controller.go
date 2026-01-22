@@ -156,7 +156,7 @@ func GetUserByID(c *gin.Context) {
 	helpers.SuccessResponse(c, "User retrieved successfully", user)
 }
 
-// CreateUser membuat user baru
+// CreateUser membuat user baru // register user
 func CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

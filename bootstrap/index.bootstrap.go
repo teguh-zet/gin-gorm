@@ -77,11 +77,11 @@ func runSmartMigration() error {
 				return fmt.Errorf("failed to update user passwords: %v", result.Error)
 			}
 
-			fmt.Printf("✅ Successfully migrated %d users with default password\n", result.RowsAffected)
-			fmt.Printf("🔐 Default password: %s\n", defaultPassword)
-			fmt.Println("⚠️  IMPORTANT: Users should change their password after first login!")
+			fmt.Printf(" Successfully migrated %d users with default password\n", result.RowsAffected)
+			fmt.Printf(" Default password: %s\n", defaultPassword)
+			fmt.Println(" IMPORTANT: Users should change their password after first login!")
 		} else {
-			fmt.Println("✅ All existing users already have passwords")
+			fmt.Println("All existing users already have passwords")
 		}
 	}
 
@@ -92,6 +92,6 @@ func runSmartMigration() error {
 		return fmt.Errorf("auto migration failed: %v", err)
 	}
 
-	fmt.Println("✅ Database migration completed successfully")
+	fmt.Println("Database migration completed successfully")
 	return nil
 }
