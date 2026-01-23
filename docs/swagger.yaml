@@ -4,11 +4,15 @@ definitions:
     properties:
       author:
         type: string
+      borrow_count:
+        type: integer
       created_at:
         description: '[NEW] Waktu dibuat'
         type: string
       id:
         type: integer
+      image_url:
+        type: string
       stock:
         description: '[NEW] Menyimpan jumlah stok'
         type: integer
@@ -24,6 +28,8 @@ definitions:
         maxLength: 100
         minLength: 2
         type: string
+      borrow_count:
+        type: integer
       stock:
         description: '[NEW] Wajib isi stok minimal 0'
         minimum: 0
@@ -175,45 +181,6 @@ info:
   title: Gin Gorm API (Manajemen Buku)
   version: "2.0"
 paths:
-  /admin/books/:
-    post:
-      consumes:
-      - application/json
-      description: Create a new book with title, author, and stock
-      parameters:
-      - description: Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Book Data
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.CreateBookRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/models.Book'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties: true
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Create a new book
-      tags:
-      - admin
   /admin/books/{id}:
     delete:
       consumes:
@@ -323,6 +290,50 @@ paths:
       security:
       - BearerAuth: []
       summary: Update Data Buku (Admin)
+      tags:
+      - admin
+  /admin/books/{id}/image:
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Mengunggah file gambar (jpg/png) untuk sampul buku.
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: File Gambar
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: URL Gambar
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Gagal Upload
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Upload Gambar Sampul Buku
       tags:
       - admin
   /admin/loans:
@@ -622,6 +633,45 @@ paths:
       summary: Register User Baru
       tags:
       - auth
+  /books:
+    post:
+      consumes:
+      - application/json
+      description: Create a new book with title, author, and stock
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Book Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateBookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Book'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new book
+      tags:
+      - admin
   /books/{id}:
     get:
       consumes:
@@ -663,7 +713,7 @@ paths:
       consumes:
       - application/json
       description: Menampilkan daftar buku dengan fitur pagination, limit, sorting,
-        dan ordering.
+        dan filter ketersediaan.
       parameters:
       - description: 'Halaman ke berapa (Default: 1)'
         in: query
@@ -681,6 +731,10 @@ paths:
         in: query
         name: order
         type: string
+      - description: Filter stok tersedia? (true/false)
+        in: query
+        name: available
+        type: boolean
       produces:
       - application/json
       responses:
@@ -694,7 +748,7 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Lihat Semua Buku (Pagination)
+      summary: Lihat Semua Buku (Pagination & Filter)
       tags:
       - books
   /books/search:

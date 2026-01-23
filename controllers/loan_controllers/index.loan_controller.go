@@ -1,4 +1,4 @@
-// 
+//
 
 package loan_controller
 
@@ -11,7 +11,34 @@ import (
 	"gin-gonic/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
+func GetLoanStats(c *gin.Context){
+	var totalLoans int64
+	var activeLoans int64
+	var returned_loans int64
+
+	database.DB.Model(&models.Loan{}).Count(&totalLoans)
+
+	database.DB.Model(&models.Loan{}).Where("status = ?", "borrowed").Count(&activeLoans)
+	database.DB.Model(&models.Loan{}).Where("status = ?", "returned").Count(&returned_loans)
+
+
+	stats := gin.H{
+		"total_transactions" : totalLoans,
+		"currently_borrowed" : activeLoans,
+		"returned_books" : returned_loans,
+	}	
+	helpers.SuccessResponse(c, "Loan statistics", stats)
+
+}
+
+func GetPopularBooks(c *gin.Context) {
+    var books []models.Book
+    // Ambil 5 buku dengan borrow_count terbanyak
+    database.DB.Order("borrow_count DESC").Limit(1).Find(&books)
+    helpers.SuccessResponse(c, "Popular books", books)
+}
 
 // BorrowBook godoc
 // @Summary      Pinjam Buku
@@ -37,9 +64,7 @@ func BorrowBook(c *gin.Context) {
 	}
 	userID := uint(userIDVal.(float64))
 
-	// Pastikan struct LoanRequest ada di models/loan.model.go
-	// type LoanRequest struct { BookID uint `json:"book_id"` }
-	var req models.LoanRequest 
+	var req models.LoanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(c, err.Error())
 		return
@@ -76,10 +101,21 @@ func BorrowBook(c *gin.Context) {
 		return
 	}
 
+	// ---------------------------------------------------------
+	// 1. Kurangi Stok Buku
+	// ---------------------------------------------------------
 	book.Stock = book.Stock - 1
 	if err := tx.Save(&book).Error; err != nil {
 		tx.Rollback()
 		helpers.InternalServerError(c, "Failed to update stock", err.Error())
+		return
+	}
+
+	// Menggunakan gorm.Expr("borrow_count + 1") agar aman dari race condition
+	if err := tx.Model(&models.Book{}).Where("id = ?", req.BookID).
+		Update("borrow_count", gorm.Expr("borrow_count + 1")).Error; err != nil {
+		tx.Rollback()
+		helpers.InternalServerError(c, "Failed to update book popularity", err.Error())
 		return
 	}
 

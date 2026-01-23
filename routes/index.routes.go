@@ -47,12 +47,13 @@ func InitRoute(app *gin.Engine) {
 		userRoutes := protected.Group("/users")
 		userRoutes.GET("/profile", user_controllers.GetProfile)
 		userRoutes.PUT("/:id", user_controllers.UpdateUser) // Sebaiknya validasi di controller agar hanya bisa edit diri sendiri
-
+		
 		// --- Loan Routes (Peminjaman) ---
 		loanRoutes := protected.Group("/loans")
 		loanRoutes.POST("/", loan_controller.BorrowBook)
 		loanRoutes.GET("/my", loan_controller.GetMyLoans)
 		loanRoutes.POST("/return/:id", loan_controller.ReturnBook)
+		loanRoutes.GET("fav",loan_controller.GetPopularBooks)
 
 		// ==========================================
 		// 3. ADMIN ROUTES (Hanya Role Admin)
@@ -61,11 +62,12 @@ func InitRoute(app *gin.Engine) {
 		admin.Use(middlewares.AdminMiddleware())
 		{
 			// Admin User Management
-			admin.GET("/users", user_controllers.GetAllUsers)
-			admin.GET("/all", user_controllers.GetAllUsers2)
-			admin.GET("/search", user_controllers.SearchUsers)
-			admin.GET("/:id", user_controllers.GetUserByID)
-			admin.DELETE("/:id", user_controllers.DeleteUser)
+			adminUsers := admin.Group("/users")
+			adminUsers.GET("/users", user_controllers.GetAllUsers)
+			adminUsers.GET("/all", user_controllers.GetAllUsers2)
+			adminUsers.GET("/search", user_controllers.SearchUsers)
+			adminUsers.GET("/:id", user_controllers.GetUserByID)
+			adminUsers.DELETE("/:id", user_controllers.DeleteUser)
 			// admin.DELETE("/users/bulk", user_controllers.BulkDeleteUsers)
 
 			// Admin Book Management (CRUD Buku pindah ke sini agar aman)
@@ -74,7 +76,8 @@ func InitRoute(app *gin.Engine) {
 			adminBooks.PUT("/:id", book_controller.UpdateBook)
 			adminBooks.DELETE("/:id", book_controller.DeleteBook)
 			adminBooks.DELETE("/bulk-delete", book_controller.BulkDeleteBooks)
-			
+			adminBooks.GET("/stats", loan_controller.GetLoanStats)
+			adminBooks.PATCH("/:id/image", book_controller.UploadBookImage)
 			// Admin Loan Monitoring (Optional: jika ingin melihat semua pinjaman)
 			// admin.GET("/loans", loan_controller.GetAllLoans) 
 		}

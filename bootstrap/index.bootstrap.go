@@ -24,6 +24,7 @@ func BootstrapApp() {
 	fmt.Println("Auto migration completed successfully")
 
 	app := gin.Default()
+	app.Static("/uploads","./uploads")
 	seedAdmin()
 	// Middleware untuk logging dan recovery
 	app.Use(gin.Logger())

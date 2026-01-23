@@ -5,7 +5,8 @@ import (
 	"gin-gonic/helpers"
 	"gin-gonic/models"
 	"strconv"
-
+	"github.com/cloudinary/cloudinary-go/v2"
+    "github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 )
 // get all book reguler
@@ -19,10 +20,9 @@ func GetAllBooks(ctx *gin.Context) {
 	helpers.SuccessResponse(ctx, "Book retrieved succesfully",book)
 }
 
-//get all book with pagination and sorting
 // GetAllBooks2 godoc
-// @Summary      Lihat Semua Buku (Pagination)
-// @Description  Menampilkan daftar buku dengan fitur pagination, limit, sorting, dan ordering.
+// @Summary      Lihat Semua Buku (Pagination & Filter)
+// @Description  Menampilkan daftar buku dengan fitur pagination, limit, sorting, dan filter ketersediaan.
 // @Tags         books
 // @Accept       json
 // @Produce      json
@@ -30,69 +30,98 @@ func GetAllBooks(ctx *gin.Context) {
 // @Param        limit     query int    false "Jumlah data per halaman (Default: 10, Max: 100)"
 // @Param        sort_by   query string false "Kolom sorting (id, title, author). Default: id"
 // @Param        order     query string false "Arah urutan (ASC/DESC). Default: DESC"
+// @Param        available query bool   false "Filter stok tersedia? (true/false)"
 // @Success      200       {object} map[string]interface{} "Data Buku dengan Pagination"
 // @Failure      500       {object} map[string]interface{} "Internal Server Error"
 // @Router       /books/all [get]
-func GetAllBooks2(c *gin.Context){
-	page:= c.DefaultQuery("page","1")
-	limit := c.DefaultQuery("limit","10")
-
-	sortBy:= c.DefaultQuery("sort_by", "id")
+func GetAllBooks2(c *gin.Context) {
+	// 1. Ambil Parameter
+	page := c.DefaultQuery("page", "1")
+	limit := c.DefaultQuery("limit", "10")
+	sortBy := c.DefaultQuery("sort_by", "id")
 	order := c.DefaultQuery("order", "DESC")
+	
+	// [FITUR BARU] Parameter available
+	available := c.DefaultQuery("available", "false")
 
+	// 2. Validasi Angka (Pagination)
 	pageNum, err := strconv.Atoi(page)
-	if err != nil || pageNum <1{
+	if err != nil || pageNum < 1 {
 		pageNum = 1
 	}
 
 	limitNum, err := strconv.Atoi(limit)
-	if err!= nil || limitNum < 1{
-		limitNum =10
+	if err != nil || limitNum < 1 {
+		limitNum = 10
 	}
-	if limitNum > 100{
-		limitNum =100
+	if limitNum > 100 {
+		limitNum = 100
 	}
 
-	offset := (pageNum -1) * limitNum
-	// validasi sort
+	offset := (pageNum - 1) * limitNum
+
+	// 3. Validasi Sorting
 	allowed := map[string]bool{
-		"title": true,
+		"title":  true,
 		"author": true,
-		"id": true,
-
+		"id":     true,
 	}
-	if !allowed[sortBy]{
+	if !allowed[sortBy] {
 		sortBy = "id"
 	}
-	if order != "ASC" && order != "DESC"{
+	if order != "ASC" && order != "DESC" {
 		order = "DESC"
 	}
+
+	// ==========================================================
+	// 4. KONSTRUKSI QUERY (Penting!)
+	// ==========================================================
+	
 	var books []models.Book
 	var total int64
 
-	if err := database.DB.Order(sortBy +" "+order).Offset(offset).Limit(limitNum).Find(&books).Error;
-	err!= nil{
-		helpers.InternalServerError(c, " failed to fetch book", err.Error())
+	// Kita inisialisasi query GORM tanpa mengeksekusinya dulu
+	query := database.DB.Model(&models.Book{})
+
+	// [LOGIC FILTER] Jika available=true, tambahkan WHERE stock > 0
+	if available == "true" {
+		query = query.Where("stock > 0")
 	}
-	database.DB.Model(&models.Book{}).Count(&total)
-	totalPages :=(total + int64(limitNum)-1 ) / int64(limitNum)
-	helpers.SuccessResponse(c,"Books retrivied successfully", gin.H{
-		"data":         books,
-        "pagination": gin.H{
-            "total":        total,
-            "page":         pageNum,
-            "limit":        limitNum,
-            "total_pages":  totalPages,
-            "has_next":     pageNum < int(totalPages),
-            "has_previous": pageNum > 1,
-        },
-        "sorting": gin.H{
-            "sort_by": sortBy,
-            "order":   order,
-        },
+
+	// 5. Hitung Total Data (Sesuai Filter)
+	// Penting: Count harus dilakukan SETELAH filter where, tapi SEBELUM limit/offset
+	query.Count(&total)
+
+	// 6. Eksekusi Query dengan Pagination & Sorting
+	if err := query.Order(sortBy + " " + order).
+		Offset(offset).
+		Limit(limitNum).
+		Find(&books).Error; err != nil {
+		helpers.InternalServerError(c, "Failed to fetch book", err.Error())
+		return
+	}
+
+	// 7. Hitung Total Page
+	totalPages := (total + int64(limitNum) - 1) / int64(limitNum)
+	
+	// 8. Kirim Response
+	helpers.SuccessResponse(c, "Books retrieved successfully", gin.H{
+		"data": books,
+		"pagination": gin.H{
+			"total":        total,
+			"page":         pageNum,
+			"limit":        limitNum,
+			"total_pages":  totalPages,
+			"has_next":     pageNum < int(totalPages),
+			"has_previous": pageNum > 1,
+		},
+		"sorting": gin.H{
+			"sort_by":   sortBy,
+			"order":     order,
+			"available": available, // Info filter dikembalikan juga
+		},
 	})
 }
-
 // GetBookByID godoc
 // @Summary      Lihat Detail Buku
 // @Description  Menampilkan detail satu buku berdasarkan ID.
@@ -136,7 +165,7 @@ func GetBookByID(c *gin.Context){
 // @Failure      400  {object} map[string]interface{}
 // @Failure      401  {object} map[string]interface{}
 // @Security     BearerAuth
-// @Router       /admin/books/ [post]
+// @Router       /books [post]
 func CreateBook(ctx *gin.Context){
 	var req models.CreateBookRequest
 	if err := ctx.ShouldBindJSON(&req);err!=nil{
@@ -296,4 +325,65 @@ func SearchBooks(c *gin.Context){
 	}
 	helpers.SuccessResponse(c, "search result", books)
 
+}
+
+
+
+// UploadBookImage godoc
+// @Summary      Upload Gambar Sampul Buku
+// @Description  Mengunggah file gambar (jpg/png) untuk sampul buku.
+// @Tags         admin
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        id      path   int  true "Book ID"
+// @Param        image   formData file true "File Gambar"
+// @Success      200     {object} map[string]interface{} "URL Gambar"
+// @Failure      400     {object} map[string]interface{} "Gagal Upload"
+// @Failure      500     {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/books/{id}/image [patch]
+func UploadBookImage(c *gin.Context) {
+	id := c.Param("id")
+
+	// 1. Ambil file dari form-data
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		helpers.BadRequestError(c, "No file uploaded", "Key 'image' is required")
+		return
+	}
+
+	// 2. Buka File agar bisa dibaca stream-nya
+	file, err := fileHeader.Open()
+	if err != nil {
+		helpers.InternalServerError(c, "Failed to open file", err.Error())
+		return
+	}
+	defer file.Close() // Wajib ditutup setelah selesai
+
+	cldName := helpers.GetConfig("CLOUDINARY_CLOUD_NAME")
+	cldKey := helpers.GetConfig("CLOUDINARY_API_KEY")
+	cldSecret := helpers.GetConfig("CLOUDINARY_API_SECRET")
+	cld, _ := cloudinary.NewFromParams(cldName, cldKey, cldSecret)
+
+	// 4. Upload ke Cloudinary
+	resp, err := cld.Upload.Upload(c, file, uploader.UploadParams{
+		Folder: "library-app", // Nanti gambar masuk ke folder ini di Cloudinary
+        PublicID: "book-" + id, // (Opsional) Nama file di cloud
+	})
+
+	if err != nil {
+		helpers.InternalServerError(c, "Failed to upload to cloud", err.Error())
+		return
+	}
+
+	// 5. Update Database (Simpan URL HTTPS dari Cloudinary)
+    // resp.SecureURL adalah alamat gambar yang bisa diakses internet
+	if err := database.DB.Model(&models.Book{}).Where("id = ?", id).
+		Update("image_url", resp.SecureURL).Error; err != nil {
+		helpers.InternalServerError(c, "Failed to update database", err.Error())
+		return
+	}
+
+	helpers.SuccessResponse(c, "Image uploaded successfully", gin.H{"url": resp.SecureURL})
 }

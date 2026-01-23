@@ -24,66 +24,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/admin/books/": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Create a new book with title, author, and stock",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin"
-                ],
-                "summary": "Create a new book",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer Token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Book Data",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.CreateBookRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/models.Book"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
-        },
         "/admin/books/{id}": {
             "put": {
                 "security": [
@@ -234,6 +174,72 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Buku tidak ditemukan",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/books/{id}/image": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Mengunggah file gambar (jpg/png) untuk sampul buku.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Upload Gambar Sampul Buku",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Book ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File Gambar",
+                        "name": "image",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "URL Gambar",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Gagal Upload",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -689,9 +695,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/books": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new book with title, author, and stock",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Create a new book",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer Token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Book Data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CreateBookRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.Book"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/books/all": {
             "get": {
-                "description": "Menampilkan daftar buku dengan fitur pagination, limit, sorting, dan ordering.",
+                "description": "Menampilkan daftar buku dengan fitur pagination, limit, sorting, dan filter ketersediaan.",
                 "consumes": [
                     "application/json"
                 ],
@@ -701,7 +767,7 @@ const docTemplate = `{
                 "tags": [
                     "books"
                 ],
-                "summary": "Lihat Semua Buku (Pagination)",
+                "summary": "Lihat Semua Buku (Pagination \u0026 Filter)",
                 "parameters": [
                     {
                         "type": "integer",
@@ -725,6 +791,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Arah urutan (ASC/DESC). Default: DESC",
                         "name": "order",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter stok tersedia? (true/false)",
+                        "name": "available",
                         "in": "query"
                     }
                 ],
@@ -1196,12 +1268,18 @@ const docTemplate = `{
                 "author": {
                     "type": "string"
                 },
+                "borrow_count": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "description": "[NEW] Waktu dibuat",
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
+                },
+                "image_url": {
+                    "type": "string"
                 },
                 "stock": {
                     "description": "[NEW] Menyimpan jumlah stok",
@@ -1228,6 +1306,9 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 100,
                     "minLength": 2
+                },
+                "borrow_count": {
+                    "type": "integer"
                 },
                 "stock": {
                     "description": "[NEW] Wajib isi stok minimal 0",
