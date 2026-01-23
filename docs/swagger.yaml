@@ -114,6 +114,21 @@ definitions:
       user:
         $ref: '#/definitions/models.User'
     type: object
+  models.UpdateBookRequest:
+    properties:
+      author:
+        maxLength: 100
+        minLength: 2
+        type: string
+      stock:
+        description: '[NEW] Update stok'
+        minimum: 0
+        type: integer
+      title:
+        maxLength: 100
+        minLength: 2
+        type: string
+    type: object
   models.UpdateUserRequest:
     properties:
       address:
@@ -160,6 +175,117 @@ info:
   title: Gin Gorm API (Manajemen Buku)
   version: "2.0"
 paths:
+  /admin/books/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus buku dari database (Soft Delete). Khusus Admin.
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Data buku yang dihapus
+          schema:
+            $ref: '#/definitions/models.Book'
+        "400":
+          description: ID Salah
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Buku tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Hapus Buku (Admin)
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Mengubah data buku (Judul, Penulis, Stok). Khusus Admin.
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Data Update Buku
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateBookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Book'
+        "400":
+          description: Validasi Error / ID Salah
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Buku tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update Data Buku (Admin)
+      tags:
+      - admin
   /admin/loans:
     get:
       consumes:
@@ -284,6 +410,61 @@ paths:
       security:
       - BearerAuth: []
       summary: Lihat Semua User (Pagination & Sorting)
+      tags:
+      - admin
+  /admin/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus data user dari database (Soft Delete). Hanya Admin yang
+        boleh melakukan ini.
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: User ID yang akan dihapus
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Mengembalikan ID user yang dihapus
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: ID Salah / Bukan Angka
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden (Bukan Admin)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: User tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Hapus User (Admin)
       tags:
       - admin
   /admin/users/search:
@@ -439,6 +620,114 @@ paths:
       security:
       - BearerAuth: []
       summary: Create a new book
+      tags:
+      - books
+  /books/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Menampilkan detail satu buku berdasarkan ID.
+      parameters:
+      - description: Book ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Book'
+        "400":
+          description: ID Salah
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Buku tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Lihat Detail Buku
+      tags:
+      - books
+  /books/all:
+    get:
+      consumes:
+      - application/json
+      description: Menampilkan daftar buku dengan fitur pagination, limit, sorting,
+        dan ordering.
+      parameters:
+      - description: 'Halaman ke berapa (Default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah data per halaman (Default: 10, Max: 100)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Kolom sorting (id, title, author). Default: id'
+        in: query
+        name: sort_by
+        type: string
+      - description: 'Arah urutan (ASC/DESC). Default: DESC'
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Data Buku dengan Pagination
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Lihat Semua Buku (Pagination)
+      tags:
+      - books
+  /books/search:
+    get:
+      consumes:
+      - application/json
+      description: Mencari buku berdasarkan keyword yang cocok dengan Judul ATAU Penulis.
+      parameters:
+      - description: Keyword pencarian (Judul atau Penulis)
+        in: query
+        name: title
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Book'
+            type: array
+        "400":
+          description: Parameter title wajib diisi
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Cari Buku
       tags:
       - books
   /loans:

@@ -311,6 +311,22 @@ func UpdateUser(c *gin.Context) {
 }
 
 // DeleteUser menghapus user (soft delete)
+// DeleteUser godoc
+// @Summary      Hapus User (Admin)
+// @Description  Menghapus data user dari database (Soft Delete). Hanya Admin yang boleh melakukan ini.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        id   path int true "User ID yang akan dihapus"
+// @Success      200  {object} map[string]interface{} "Mengembalikan ID user yang dihapus"
+// @Failure      400  {object} map[string]interface{} "ID Salah / Bukan Angka"
+// @Failure      401  {object} map[string]interface{} "Unauthorized"
+// @Failure      403  {object} map[string]interface{} "Forbidden (Bukan Admin)"
+// @Failure      404  {object} map[string]interface{} "User tidak ditemukan"
+// @Failure      500  {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/users/{id} [delete]
 func DeleteUser(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)

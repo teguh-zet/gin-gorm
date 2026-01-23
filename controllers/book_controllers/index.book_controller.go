@@ -20,6 +20,19 @@ func GetAllBooks(ctx *gin.Context) {
 }
 
 //get all book with pagination and sorting
+// GetAllBooks2 godoc
+// @Summary      Lihat Semua Buku (Pagination)
+// @Description  Menampilkan daftar buku dengan fitur pagination, limit, sorting, dan ordering.
+// @Tags         books
+// @Accept       json
+// @Produce      json
+// @Param        page      query int    false "Halaman ke berapa (Default: 1)"
+// @Param        limit     query int    false "Jumlah data per halaman (Default: 10, Max: 100)"
+// @Param        sort_by   query string false "Kolom sorting (id, title, author). Default: id"
+// @Param        order     query string false "Arah urutan (ASC/DESC). Default: DESC"
+// @Success      200       {object} map[string]interface{} "Data Buku dengan Pagination"
+// @Failure      500       {object} map[string]interface{} "Internal Server Error"
+// @Router       /books/all [get]
 func GetAllBooks2(c *gin.Context){
 	page:= c.DefaultQuery("page","1")
 	limit := c.DefaultQuery("limit","10")
@@ -80,7 +93,18 @@ func GetAllBooks2(c *gin.Context){
 	})
 }
 
-
+// GetBookByID godoc
+// @Summary      Lihat Detail Buku
+// @Description  Menampilkan detail satu buku berdasarkan ID.
+// @Tags         books
+// @Accept       json
+// @Produce      json
+// @Param        id   path int true "Book ID"
+// @Success      200  {object} models.Book
+// @Failure      400  {object} map[string]interface{} "ID Salah"
+// @Failure      404  {object} map[string]interface{} "Buku tidak ditemukan"
+// @Failure      500  {object} map[string]interface{} "Internal Server Error"
+// @Router       /books/{id} [get]
 func GetBookByID(c *gin.Context){
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam,10,32)
@@ -130,7 +154,23 @@ func CreateBook(ctx *gin.Context){
 	}
 	helpers.CreatedResponse(ctx,"book created succesfully",book)
 }
-
+// UpdateBook godoc
+// @Summary      Update Data Buku (Admin)
+// @Description  Mengubah data buku (Judul, Penulis, Stok). Khusus Admin.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        id      path int true "Book ID"
+// @Param        request body models.UpdateBookRequest true "Data Update Buku"
+// @Success      200     {object} models.Book
+// @Failure      400     {object} map[string]interface{} "Validasi Error / ID Salah"
+// @Failure      401     {object} map[string]interface{} "Unauthorized"
+// @Failure      403     {object} map[string]interface{} "Forbidden"
+// @Failure      404     {object} map[string]interface{} "Buku tidak ditemukan"
+// @Failure      500     {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/books/{id} [put]
 func UpdateBook(ctx *gin.Context){
 	idParam := ctx.Param("id")
 	id, err := strconv.ParseUint(idParam,10,32)
@@ -176,7 +216,22 @@ func UpdateBook(ctx *gin.Context){
 	helpers.SuccessResponse(ctx, "Book updated successfully",book)
 
 }
-
+// DeleteBook godoc
+// @Summary      Hapus Buku (Admin)
+// @Description  Menghapus buku dari database (Soft Delete). Khusus Admin.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        id  path int true "Book ID"
+// @Success      200 {object} models.Book "Data buku yang dihapus"
+// @Failure      400 {object} map[string]interface{} "ID Salah"
+// @Failure      401 {object} map[string]interface{} "Unauthorized"
+// @Failure      403 {object} map[string]interface{} "Forbidden"
+// @Failure      404 {object} map[string]interface{} "Buku tidak ditemukan"
+// @Failure      500 {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/books/{id} [delete]
 func DeleteBook(ctx *gin.Context){
 	idParam := ctx.Param("id")
 	id,err:= strconv.ParseUint(idParam,10,32)
@@ -216,7 +271,17 @@ func BulkDeleteBooks(c *gin.Context){
 	helpers.SuccessResponse(c,"books deleted succesfully",gin.H{"delete_count" : len(req.IDs)})
 
 }
-
+// SearchBooks godoc
+// @Summary      Cari Buku
+// @Description  Mencari buku berdasarkan keyword yang cocok dengan Judul ATAU Penulis.
+// @Tags         books
+// @Accept       json
+// @Produce      json
+// @Param        title query string true "Keyword pencarian (Judul atau Penulis)"
+// @Success      200   {array}  models.Book
+// @Failure      400   {object} map[string]interface{} "Parameter title wajib diisi"
+// @Failure      500   {object} map[string]interface{} "Internal Server Error"
+// @Router       /books/search [get]
 func SearchBooks(c *gin.Context){
 	query := c.Query("title")
 	if query ==""{

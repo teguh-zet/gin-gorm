@@ -62,8 +62,7 @@ func InitRoute(app *gin.Engine) {
 		{
 			// Admin User Management
 			admin.GET("/users", user_controllers.GetAllUsers)
-			admin.GET("/all", user_controllers.GetAllUsers2) // Pagination
-			admin.GET("/stats", user_controllers.GetUserStats)
+			admin.GET("/all", user_controllers.GetAllUsers2)
 			admin.GET("/search", user_controllers.SearchUsers)
 			admin.GET("/:id", user_controllers.GetUserByID)
 			admin.DELETE("/:id", user_controllers.DeleteUser)
