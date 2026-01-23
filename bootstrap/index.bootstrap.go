@@ -88,7 +88,7 @@ func runSmartMigration() error {
 
 	// Jalankan auto migration normal
 	fmt.Println("Running GORM auto migration...")
-	err := database.DB.AutoMigrate(&models.User{}, &models.Book{})
+	err := database.DB.AutoMigrate(&models.User{}, &models.Book{}, &models.Loan{})
 	if err != nil {
 		return fmt.Errorf("auto migration failed: %v", err)
 	}

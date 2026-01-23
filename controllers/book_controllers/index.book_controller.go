@@ -100,16 +100,29 @@ func GetBookByID(c *gin.Context){
 	}
 	helpers.SuccessResponse(c,"User retrieved successfully", user )
 }
-
+// CreateBook godoc
+// @Summary      Create a new book
+// @Description  Create a new book with title, author, and stock
+// @Tags         books
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        request body models.CreateBookRequest true "Book Data"
+// @Success      201  {object} models.Book
+// @Failure      400  {object} map[string]interface{}
+// @Failure      401  {object} map[string]interface{}
+// @Security     BearerAuth
+// @Router       /books [post]
 func CreateBook(ctx *gin.Context){
 	var req models.CreateBookRequest
-	if err := ctx.ShouldBindBodyWithJSON(&req);err!=nil{
+	if err := ctx.ShouldBindJSON(&req);err!=nil{
 		helpers.ValidationError(ctx,err.Error())
 		return
 	}
 	book:= models.Book{
 		Title: req.Title,
 		Author: req.Author,
+		Stock: req.Stock,
 	}
 	if err := database.DB.Create(&book).Error; err!=nil{
 		helpers.InternalServerError(ctx,"Failed to create book",err.Error())
@@ -120,7 +133,7 @@ func CreateBook(ctx *gin.Context){
 
 func UpdateBook(ctx *gin.Context){
 	idParam := ctx.Param("id")
-	id, err := strconv.ParseUint(idParam,10,31)
+	id, err := strconv.ParseUint(idParam,10,32)
 	if err!=nil {
 		helpers.BadRequestError(ctx,"invalid Book ID","ID must be a number ")
 		return
@@ -128,14 +141,14 @@ func UpdateBook(ctx *gin.Context){
 	var book models.Book
 	if err :=database.DB.First(&book,id).Error; err!=nil{
 		if err.Error() == "record not found"{
-			helpers.NotFoundError(ctx,"User not found")
+			helpers.NotFoundError(ctx,"Book not found")
 			return
 		}
 		helpers.InternalServerError(ctx,"Failed to fetch book", err.Error())
 		return
 	}
-	var req models.CreateBookRequest
-	if err := ctx.ShouldBindBodyWithJSON(&req);err!= nil{
+	var req models.UpdateBookRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(ctx, err.Error())
 		return
 	}
@@ -147,7 +160,10 @@ func UpdateBook(ctx *gin.Context){
 	if req.Author != ""{
 		updates["author"] = req.Author		
 	}
-
+	if req.Stock != 0 {
+		updates["stock"] = req.Stock
+	}	
+	//setidaknya ada satu field yang diupdate
 	if len(updates) ==0{
 		helpers.BadRequestError(ctx, "No field to update", "at least one field must be provided")
 	}
@@ -189,7 +205,7 @@ func BulkDeleteBooks(c *gin.Context){
 	var req struct{
 		IDs []uint `json:"ids" binding:"required"` 
 	}
-	if err := c.ShouldBindBodyWithJSON(&req); err !=nil{
+	if err := c.ShouldBindJSON(&req); err !=nil{
 		helpers.ValidationError(c,err.Error())
 		return
 	}

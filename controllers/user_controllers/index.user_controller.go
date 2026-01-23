@@ -42,6 +42,23 @@ func GetAllUsers2(c *gin.Context) {
 }
 
 // with pagination, sorting and with a little validation
+// GetAllUsers godoc
+// @Summary      Lihat Semua User (Pagination & Sorting)
+// @Description  Menampilkan daftar user dengan fitur pagination, limit, dan sorting. Khusus Admin.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        page      query int    false "Halaman ke berapa (Default: 1)"
+// @Param        limit     query int    false "Jumlah data per halaman (Default: 10, Max: 100)"
+// @Param        sort_by   query string false "Kolom untuk sorting (id, name, email, created_at, dll). Default: created_at"
+// @Param        order     query string false "Arah urutan (ASC atau DESC). Default: DESC"
+// @Success      200       {object} map[string]interface{} "Response berisi data array user, objek pagination, dan sorting"
+// @Failure      401       {object} map[string]interface{} "Unauthorized"
+// @Failure      403       {object} map[string]interface{} "Forbidden (Bukan Admin)"
+// @Failure      500       {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/users [get]
 func GetAllUsers(c *gin.Context) {
 	// Pagination parameters
 	page := c.DefaultQuery("page", "1")
@@ -156,7 +173,18 @@ func GetUserByID(c *gin.Context) {
 	helpers.SuccessResponse(c, "User retrieved successfully", user)
 }
 
-// CreateUser membuat user baru // register user
+// CreateUser godoc
+// @Summary      Register User Baru
+// @Description  Mendaftarkan user baru dengan nama, email, password, dan tanggal lahir.
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.CreateUserRequest true "Data Registrasi User"
+// @Success      201  {object} models.User
+// @Failure      400  {object} map[string]interface{} "Validasi Error / Format Tanggal Salah"
+// @Failure      409  {object} map[string]interface{} "Email sudah terdaftar"
+// @Failure      500  {object} map[string]interface{} "Internal Server Error"
+// @Router       /auth/register [post]
 func CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -200,6 +228,23 @@ func CreateUser(c *gin.Context) {
 }
 
 // UpdateUser mengupdate data user
+// UpdateUser godoc
+// @Summary      Update Data User
+// @Description  Mengubah data profil user (Nama, Alamat, Email, Tgl Lahir). Membutuhkan token login.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        id path int true "User ID"
+// @Param        request body models.UpdateUserRequest true "Data yang ingin diupdate"
+// @Success      200  {object} models.User
+// @Failure      400  {object} map[string]interface{} "ID Salah / Format Tanggal Salah / Tidak ada field update"
+// @Failure      401  {object} map[string]interface{} "Unauthorized"
+// @Failure      404  {object} map[string]interface{} "User tidak ditemukan"
+// @Failure      409  {object} map[string]interface{} "Email konflik dengan user lain"
+// @Failure      500  {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /users/{id} [put]
 func UpdateUser(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
@@ -292,26 +337,20 @@ func DeleteUser(c *gin.Context) {
 	helpers.SuccessResponse(c, "User deleted successfully", gin.H{"id": id})
 }
 
-// bulk delete
-func BulkDeleteUsers(c *gin.Context) {
-	var req struct {
-		IDs []uint `json:"ids" binding:"required"`
-	}
-	if err := c.ShouldBindBodyWithJSON(&req); err != nil {
-		helpers.ValidationError(c, err.Error())
-		return
-	}
-	if err := database.DB.Delete(&[]models.User{}, req.IDs).Error; err != nil {
-		helpers.InternalServerError(c, " failed to delete users", err.Error())
-		return
-	}
-	helpers.SuccessResponse(c, "users deleted Succesfully",
-		gin.H{"delete_count": len(req.IDs)})
-
-}
-
-// search
-
+// SearchUsers godoc
+// @Summary      Mencari User
+// @Description  Mencari data user berdasarkan keyword yang cocok dengan nama ATAU email (LIKE query).
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Param        name query string true "Keyword pencarian (Nama atau Email)"
+// @Success      200  {array} models.User
+// @Failure      400  {object} map[string]interface{} "Parameter query kosong"
+// @Failure      401  {object} map[string]interface{} "Unauthorized"
+// @Failure      500  {object} map[string]interface{} "Internal Server Error"
+// @Security     BearerAuth
+// @Router       /admin/users/search [get]
 func SearchUsers(c *gin.Context) {
 	query := c.Query("name")
 	if query == "" {
@@ -334,7 +373,18 @@ type UserStats struct {
 	NewUsersToday int64         `json:"new_users_today"`
 	LatestUsers   []models.User `json:"latest_users"`
 }
-
+// GetUserStats godoc
+// @Summary      Statistik User (Admin)
+// @Description  Menampilkan total user, user baru hari ini, dan 5 user terakhir.
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Success      200  {object} map[string]interface{} "User Statistics (Total, New Today, Latest)"
+// @Failure      401  {object} map[string]interface{} "Unauthorized"
+// @Failure      403  {object} map[string]interface{} "Forbidden (Bukan Admin)"
+// @Security     BearerAuth
+// @Router       /admin/stats [get]
 func GetUserStats(c *gin.Context) {
 	var totalUsers int64
 	var newUsersToday int64
@@ -360,6 +410,17 @@ func GetUserStats(c *gin.Context) {
 }
 
 // Login melakukan autentikasi user dan mengembalikan JWT token
+// Login godoc
+// @Summary      Login User
+// @Description  Authenticates a user and returns a JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body models.LoginRequest true "Login Credentials"
+// @Success      200  {object} models.LoginResponse
+// @Failure      400  {object} map[string]interface{}
+// @Failure      401  {object} map[string]interface{}
+// @Router       /auth/login [post]
 func Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -401,6 +462,19 @@ func Login(c *gin.Context) {
 }
 
 // GetProfile mengambil profile user yang sedang login (butuh JWT token)
+// GetProfile godoc
+// @Summary      Profil Saya
+// @Description  Menampilkan data detail user yang sedang login berdasarkan Token.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        Authorization header string true "Bearer Token"
+// @Success      200  {object} models.User
+// @Failure      401  {object} map[string]interface{} "Token tidak ada / tidak valid"
+// @Failure      404  {object} map[string]interface{} "User tidak ditemukan"
+// @Failure      500  {object} map[string]interface{} "Gagal mengambil data"
+// @Security     BearerAuth
+// @Router       /users/profile [get]
 func GetProfile(c *gin.Context) {
 	// Ambil user ID dari JWT token (sudah di-set oleh middleware)
 	userID, exists := c.Get("user_id")
