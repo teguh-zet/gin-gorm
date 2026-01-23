@@ -127,7 +127,7 @@ func GetBookByID(c *gin.Context){
 // CreateBook godoc
 // @Summary      Create a new book
 // @Description  Create a new book with title, author, and stock
-// @Tags         books
+// @Tags         admin
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
@@ -136,7 +136,7 @@ func GetBookByID(c *gin.Context){
 // @Failure      400  {object} map[string]interface{}
 // @Failure      401  {object} map[string]interface{}
 // @Security     BearerAuth
-// @Router       /books [post]
+// @Router       /admin/books/ [post]
 func CreateBook(ctx *gin.Context){
 	var req models.CreateBookRequest
 	if err := ctx.ShouldBindJSON(&req);err!=nil{

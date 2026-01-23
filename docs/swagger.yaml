@@ -175,6 +175,45 @@ info:
   title: Gin Gorm API (Manajemen Buku)
   version: "2.0"
 paths:
+  /admin/books/:
+    post:
+      consumes:
+      - application/json
+      description: Create a new book with title, author, and stock
+      parameters:
+      - description: Bearer Token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Book Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateBookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Book'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new book
+      tags:
+      - admin
   /admin/books/{id}:
     delete:
       consumes:
@@ -583,45 +622,6 @@ paths:
       summary: Register User Baru
       tags:
       - auth
-  /books:
-    post:
-      consumes:
-      - application/json
-      description: Create a new book with title, author, and stock
-      parameters:
-      - description: Bearer Token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Book Data
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/models.CreateBookRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/models.Book'
-        "400":
-          description: Bad Request
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            additionalProperties: true
-            type: object
-      security:
-      - BearerAuth: []
-      summary: Create a new book
-      tags:
-      - books
   /books/{id}:
     get:
       consumes:
