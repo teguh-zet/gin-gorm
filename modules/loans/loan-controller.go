@@ -2,10 +2,26 @@ package loans
 
 import "github.com/gin-gonic/gin"
 
-// Controller hanya memanggil service (logika bisnis ada di service)
-func GetLoanStats(c *gin.Context)    { GetLoanStatsService(c) }
-func GetPopularBooks(c *gin.Context) { GetPopularBooksService(c) }
-func BorrowBook(c *gin.Context)      { BorrowBookService(c) }
-func ReturnBook(c *gin.Context)      { ReturnBookService(c) }
-func GetMyLoans(c *gin.Context)      { GetMyLoansService(c) }
-func GetAllLoans(c *gin.Context)     { GetAllLoansService(c) }
+type LoanController interface {
+	GetStats(ctx *gin.Context)
+	GetPopularBooks(ctx *gin.Context)
+	Borrow(ctx *gin.Context)
+	Return(ctx *gin.Context)
+	GetMy(ctx *gin.Context)
+	GetAll(ctx *gin.Context)
+}
+
+type loanController struct {
+	service LoanService
+}
+
+func NewLoanController(service LoanService) LoanController {
+	return &loanController{service: service}
+}
+
+func (c *loanController) GetStats(ctx *gin.Context)        { c.service.GetStats(ctx) }
+func (c *loanController) GetPopularBooks(ctx *gin.Context) { c.service.GetPopularBooks(ctx) }
+func (c *loanController) Borrow(ctx *gin.Context)          { c.service.Borrow(ctx) }
+func (c *loanController) Return(ctx *gin.Context)          { c.service.Return(ctx) }
+func (c *loanController) GetMy(ctx *gin.Context)           { c.service.GetMy(ctx) }
+func (c *loanController) GetAll(ctx *gin.Context)          { c.service.GetAll(ctx) }

@@ -1,33 +1,42 @@
 package modules
 
 import (
-	"gin-gonic/middlewares"
+	"gin-gonic/helper"
 	"gin-gonic/modules/books"
 	"gin-gonic/modules/loans"
 	"gin-gonic/modules/users"
 
-	_ "gin-gonic/docs"
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 )
 
-func InitRoute(app *gin.Engine) {
-	// Swagger (public)
-	app.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+type Versions interface {
+	Run()
+}
 
-	api := app.Group("/api/v1")
+type versions struct {
+	mainServer *gin.Engine
+	db         *gorm.DB
+	version    string
+}
 
-	// Protected routes group
-	protected := api.Group("")
-	protected.Use(middlewares.JWTMiddleware())
+func NewVersion(config helper.Config, router *gin.Engine, db *gorm.DB, version string) Versions {
+	return &versions{
+		mainServer: router,
+		db:         db,
+		version:    version,
+	}
+}
 
-	// Admin routes group
-	admin := protected.Group("/admin")
-	admin.Use(middlewares.AdminMiddleware())
+func (s *versions) Run() {
+	apiRoutes := s.mainServer.Group("/")
 
-	// Register module routes
-	users.RegisterRoutes(api, protected, admin)
-	books.RegisterRoutes(api, admin)
-	loans.RegisterRoutes(protected, admin)
+	userServer := users.NewUserServer(apiRoutes, s.db, s.version)
+	userServer.Init()
+
+	bookServer := books.NewBookServer(apiRoutes, s.db, s.version)
+	bookServer.Init()
+
+	loanServer := loans.NewLoanServer(apiRoutes, s.db, s.version)
+	loanServer.Init()
 }

@@ -2,13 +2,32 @@ package books
 
 import "github.com/gin-gonic/gin"
 
-// Controller hanya memanggil service (logika bisnis ada di service)
-func GetAllBooks(c *gin.Context)     { GetAllBooksService(c) }
-func GetAllBooks2(c *gin.Context)    { GetAllBooks2Service(c) }
-func GetBookByID(c *gin.Context)     { GetBookByIDService(c) }
-func CreateBook(c *gin.Context)      { CreateBookService(c) }
-func UpdateBook(c *gin.Context)      { UpdateBookService(c) }
-func DeleteBook(c *gin.Context)      { DeleteBookService(c) }
-func BulkDeleteBooks(c *gin.Context) { BulkDeleteBooksService(c) }
-func SearchBooks(c *gin.Context)     { SearchBooksService(c) }
-func UploadBookImage(c *gin.Context) { UploadBookImageService(c) }
+type BookController interface {
+	GetList(ctx *gin.Context)
+	GetList2(ctx *gin.Context)
+	GetByID(ctx *gin.Context)
+	Create(ctx *gin.Context)
+	Update(ctx *gin.Context)
+	Delete(ctx *gin.Context)
+	BulkDelete(ctx *gin.Context)
+	Search(ctx *gin.Context)
+	UploadImage(ctx *gin.Context)
+}
+
+type bookController struct {
+	service BookService
+}
+
+func NewBookController(service BookService) BookController {
+	return &bookController{service: service}
+}
+
+func (c *bookController) GetList(ctx *gin.Context)     { c.service.GetList(ctx) }
+func (c *bookController) GetList2(ctx *gin.Context)    { c.service.GetList2(ctx) }
+func (c *bookController) GetByID(ctx *gin.Context)     { c.service.GetByID(ctx) }
+func (c *bookController) Create(ctx *gin.Context)      { c.service.Create(ctx) }
+func (c *bookController) Update(ctx *gin.Context)      { c.service.Update(ctx) }
+func (c *bookController) Delete(ctx *gin.Context)      { c.service.Delete(ctx) }
+func (c *bookController) BulkDelete(ctx *gin.Context)  { c.service.BulkDelete(ctx) }
+func (c *bookController) Search(ctx *gin.Context)      { c.service.Search(ctx) }
+func (c *bookController) UploadImage(ctx *gin.Context) { c.service.UploadImage(ctx) }

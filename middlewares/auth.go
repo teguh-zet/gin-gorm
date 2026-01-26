@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"gin-gonic/helpers"
+	"gin-gonic/helper"
 	"gin-gonic/utils"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +15,7 @@ func JWTMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			helpers.ErrorResponse(c, http.StatusUnauthorized, "Authorization header required", nil)
+			helper.ErrorResponse(c, http.StatusUnauthorized, "Authorization header required", nil)
 			c.Abort()
 			return
 		}
@@ -23,7 +23,7 @@ func JWTMiddleware() gin.HandlerFunc {
 		// Check if token starts with "Bearer "
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			helpers.ErrorResponse(c, http.StatusUnauthorized, "Invalid authorization format. Use 'Bearer <token>'", nil)
+			helper.ErrorResponse(c, http.StatusUnauthorized, "Invalid authorization format. Use 'Bearer <token>'", nil)
 			c.Abort()
 			return
 		}
@@ -33,7 +33,7 @@ func JWTMiddleware() gin.HandlerFunc {
 		// Validate JWT token
 		claims, err := utils.ValidateJWT(tokenString)
 		if err != nil {
-			helpers.ErrorResponse(c, http.StatusUnauthorized, "Invalid or expired token", err.Error())
+			helper.ErrorResponse(c, http.StatusUnauthorized, "Invalid or expired token", err.Error())
 			c.Abort()
 			return
 		}
@@ -53,7 +53,7 @@ func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exits := c.Get("user_role")
 		if !exits || role != "admin" {
-			helpers.ErrorResponse(c, http.StatusForbidden, "Forbidden", "Hanya admin dibenarkan mengakses ini")
+			helper.ErrorResponse(c, http.StatusForbidden, "Forbidden", "Hanya admin dibenarkan mengakses ini")
 			c.Abort()
 			return
 		}
