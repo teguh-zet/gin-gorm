@@ -1,9 +1,9 @@
 package helpers
 
 import (
+	"github.com/joho/godotenv"
+	"log"
 	"os"
-    "log"
-    "github.com/joho/godotenv"
 )
 
 // Fungsi untuk load .env dan ambil datanya
@@ -15,6 +15,7 @@ func GetConfig(key string) string {
 
 	return os.Getenv(key)
 }
+
 // var DB_DRIVER = "mysql"
 // var DB_DRIVER = "postgre"
 
@@ -24,6 +25,3 @@ func GetConfig(key string) string {
 // var DB_NAME = "go_gin_gorm"
 // var DB_USER = "postgres"
 // var DB_PASSWORD = "teazet"
-
-
-

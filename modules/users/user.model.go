@@ -1,4 +1,4 @@
-package models
+package users
 
 import (
 	"time"
@@ -12,7 +12,7 @@ type User struct {
 	Address   string         `json:"address"`
 	Email     string         `json:"email" gorm:"unique;not null"`
 	Password  string         `json:"-" gorm:""` // "-" means don't include in JSON, will be set NOT NULL after migration
-	Role	  string		 `json:"role" gorm:"default:user"`
+	Role      string         `json:"role" gorm:"default:user"`
 	BornDate  time.Time      `json:"born_date" gorm:"column:born_date"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`

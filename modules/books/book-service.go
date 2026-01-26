@@ -1,23 +1,24 @@
-package book_controller
+package books
 
 import (
-	"gin-gonic/database"
-	"gin-gonic/helpers"
-	"gin-gonic/models"
 	"strconv"
+
+	"gin-gonic/helpers"
+
 	"github.com/cloudinary/cloudinary-go/v2"
-    "github.com/cloudinary/cloudinary-go/v2/api/uploader"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 )
-// get all book reguler
-func GetAllBooks(ctx *gin.Context) {
-	var book []models.Book
 
-	if err := database.DB.Find(&book).Error;err!=nil{
-		helpers.InternalServerError(ctx,"Failed to fect book",err.Error())
+// get all book reguler
+func GetAllBooksService(ctx *gin.Context) {
+	var book []Book
+
+	if err := helpers.DB.Find(&book).Error; err != nil {
+		helpers.InternalServerError(ctx, "Failed to fect book", err.Error())
 		return
 	}
-	helpers.SuccessResponse(ctx, "Book retrieved succesfully",book)
+	helpers.SuccessResponse(ctx, "Book retrieved succesfully", book)
 }
 
 // GetAllBooks2 godoc
@@ -34,13 +35,13 @@ func GetAllBooks(ctx *gin.Context) {
 // @Success      200       {object} map[string]interface{} "Data Buku dengan Pagination"
 // @Failure      500       {object} map[string]interface{} "Internal Server Error"
 // @Router       /books/all [get]
-func GetAllBooks2(c *gin.Context) {
+func GetAllBooks2Service(c *gin.Context) {
 	// 1. Ambil Parameter
 	page := c.DefaultQuery("page", "1")
 	limit := c.DefaultQuery("limit", "10")
 	sortBy := c.DefaultQuery("sort_by", "id")
 	order := c.DefaultQuery("order", "DESC")
-	
+
 	// [FITUR BARU] Parameter available
 	available := c.DefaultQuery("available", "false")
 
@@ -76,12 +77,12 @@ func GetAllBooks2(c *gin.Context) {
 	// ==========================================================
 	// 4. KONSTRUKSI QUERY (Penting!)
 	// ==========================================================
-	
-	var books []models.Book
+
+	var books []Book
 	var total int64
 
 	// Kita inisialisasi query GORM tanpa mengeksekusinya dulu
-	query := database.DB.Model(&models.Book{})
+	query := helpers.DB.Model(&Book{})
 
 	// [LOGIC FILTER] Jika available=true, tambahkan WHERE stock > 0
 	if available == "true" {
@@ -103,7 +104,7 @@ func GetAllBooks2(c *gin.Context) {
 
 	// 7. Hitung Total Page
 	totalPages := (total + int64(limitNum) - 1) / int64(limitNum)
-	
+
 	// 8. Kirim Response
 	helpers.SuccessResponse(c, "Books retrieved successfully", gin.H{
 		"data": books,
@@ -122,6 +123,7 @@ func GetAllBooks2(c *gin.Context) {
 		},
 	})
 }
+
 // GetBookByID godoc
 // @Summary      Lihat Detail Buku
 // @Description  Menampilkan detail satu buku berdasarkan ID.
@@ -129,30 +131,31 @@ func GetAllBooks2(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        id   path int true "Book ID"
-// @Success      200  {object} models.Book
+// @Success      200  {object} Book
 // @Failure      400  {object} map[string]interface{} "ID Salah"
 // @Failure      404  {object} map[string]interface{} "Buku tidak ditemukan"
 // @Failure      500  {object} map[string]interface{} "Internal Server Error"
 // @Router       /books/{id} [get]
-func GetBookByID(c *gin.Context){
+func GetBookByIDService(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam,10,32)
-	if err!=nil {
-		helpers.BadRequestError(c,"invalid book ID","ID must be a number")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		helpers.BadRequestError(c, "invalid book ID", "ID must be a number")
 		return
 	}
-	var user models.Book
-	if err:= database.DB.First(&user,id).Error; err!=nil{
-		if err.Error() == "record not found"{
+	var user Book
+	if err := helpers.DB.First(&user, id).Error; err != nil {
+		if err.Error() == "record not found" {
 			helpers.NotFoundError(c, "user not found ")
 			return
 		}
-		helpers.InternalServerError(c,"Failed fecth user ",err.Error())
+		helpers.InternalServerError(c, "Failed fecth user ", err.Error())
 		return
-	
+
 	}
-	helpers.SuccessResponse(c,"User retrieved successfully", user )
+	helpers.SuccessResponse(c, "User retrieved successfully", user)
 }
+
 // CreateBook godoc
 // @Summary      Create a new book
 // @Description  Create a new book with title, author, and stock
@@ -160,29 +163,30 @@ func GetBookByID(c *gin.Context){
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
-// @Param        request body models.CreateBookRequest true "Book Data"
-// @Success      201  {object} models.Book
+// @Param        request body CreateBookRequest true "Book Data"
+// @Success      201  {object} Book
 // @Failure      400  {object} map[string]interface{}
 // @Failure      401  {object} map[string]interface{}
 // @Security     BearerAuth
 // @Router       /books [post]
-func CreateBook(ctx *gin.Context){
-	var req models.CreateBookRequest
-	if err := ctx.ShouldBindJSON(&req);err!=nil{
-		helpers.ValidationError(ctx,err.Error())
+func CreateBookService(ctx *gin.Context) {
+	var req CreateBookRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		helpers.ValidationError(ctx, err.Error())
 		return
 	}
-	book:= models.Book{
-		Title: req.Title,
+	book := Book{
+		Title:  req.Title,
 		Author: req.Author,
-		Stock: req.Stock,
+		Stock:  req.Stock,
 	}
-	if err := database.DB.Create(&book).Error; err!=nil{
-		helpers.InternalServerError(ctx,"Failed to create book",err.Error())
+	if err := helpers.DB.Create(&book).Error; err != nil {
+		helpers.InternalServerError(ctx, "Failed to create book", err.Error())
 		return
 	}
-	helpers.CreatedResponse(ctx,"book created succesfully",book)
+	helpers.CreatedResponse(ctx, "book created succesfully", book)
 }
+
 // UpdateBook godoc
 // @Summary      Update Data Buku (Admin)
 // @Description  Mengubah data buku (Judul, Penulis, Stok). Khusus Admin.
@@ -191,8 +195,8 @@ func CreateBook(ctx *gin.Context){
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
 // @Param        id      path int true "Book ID"
-// @Param        request body models.UpdateBookRequest true "Data Update Buku"
-// @Success      200     {object} models.Book
+// @Param        request body UpdateBookRequest true "Data Update Buku"
+// @Success      200     {object} Book
 // @Failure      400     {object} map[string]interface{} "Validasi Error / ID Salah"
 // @Failure      401     {object} map[string]interface{} "Unauthorized"
 // @Failure      403     {object} map[string]interface{} "Forbidden"
@@ -200,51 +204,52 @@ func CreateBook(ctx *gin.Context){
 // @Failure      500     {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/books/{id} [put]
-func UpdateBook(ctx *gin.Context){
+func UpdateBookService(ctx *gin.Context) {
 	idParam := ctx.Param("id")
-	id, err := strconv.ParseUint(idParam,10,32)
-	if err!=nil {
-		helpers.BadRequestError(ctx,"invalid Book ID","ID must be a number ")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		helpers.BadRequestError(ctx, "invalid Book ID", "ID must be a number ")
 		return
 	}
-	var book models.Book
-	if err :=database.DB.First(&book,id).Error; err!=nil{
-		if err.Error() == "record not found"{
-			helpers.NotFoundError(ctx,"Book not found")
+	var book Book
+	if err := helpers.DB.First(&book, id).Error; err != nil {
+		if err.Error() == "record not found" {
+			helpers.NotFoundError(ctx, "Book not found")
 			return
 		}
-		helpers.InternalServerError(ctx,"Failed to fetch book", err.Error())
+		helpers.InternalServerError(ctx, "Failed to fetch book", err.Error())
 		return
 	}
-	var req models.UpdateBookRequest
+	var req UpdateBookRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(ctx, err.Error())
 		return
 	}
 	// agar tidak terjadi data kosong karena hanya update field tertentu
 	updates := make(map[string]interface{})
-	if req.Title != ""{
-		updates["title"] = req.Title		
+	if req.Title != "" {
+		updates["title"] = req.Title
 	}
-	if req.Author != ""{
-		updates["author"] = req.Author		
+	if req.Author != "" {
+		updates["author"] = req.Author
 	}
 	if req.Stock != 0 {
 		updates["stock"] = req.Stock
-	}	
+	}
 	//setidaknya ada satu field yang diupdate
-	if len(updates) ==0{
+	if len(updates) == 0 {
 		helpers.BadRequestError(ctx, "No field to update", "at least one field must be provided")
 	}
-	if err := database.DB.Model(&book).Updates(updates).Error; err!=nil{
-		helpers.InternalServerError(ctx,"failed to update book",err.Error())
+	if err := helpers.DB.Model(&book).Updates(updates).Error; err != nil {
+		helpers.InternalServerError(ctx, "failed to update book", err.Error())
 		return
 	}
 
-	database.DB.First(&book,id)
-	helpers.SuccessResponse(ctx, "Book updated successfully",book)
+	helpers.DB.First(&book, id)
+	helpers.SuccessResponse(ctx, "Book updated successfully", book)
 
 }
+
 // DeleteBook godoc
 // @Summary      Hapus Buku (Admin)
 // @Description  Menghapus buku dari database (Soft Delete). Khusus Admin.
@@ -253,7 +258,7 @@ func UpdateBook(ctx *gin.Context){
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
 // @Param        id  path int true "Book ID"
-// @Success      200 {object} models.Book "Data buku yang dihapus"
+// @Success      200 {object} Book "Data buku yang dihapus"
 // @Failure      400 {object} map[string]interface{} "ID Salah"
 // @Failure      401 {object} map[string]interface{} "Unauthorized"
 // @Failure      403 {object} map[string]interface{} "Forbidden"
@@ -261,45 +266,45 @@ func UpdateBook(ctx *gin.Context){
 // @Failure      500 {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/books/{id} [delete]
-func DeleteBook(ctx *gin.Context){
+func DeleteBookService(ctx *gin.Context) {
 	idParam := ctx.Param("id")
-	id,err:= strconv.ParseUint(idParam,10,32)
-	if err!= nil{
-		helpers.BadRequestError(ctx,"Invalid book id","id must be a number")
+	id, err := strconv.ParseUint(idParam, 10, 32)
+	if err != nil {
+		helpers.BadRequestError(ctx, "Invalid book id", "id must be a number")
 		return
 	}
-	var book models.Book
-	if err := database.DB.First(&book,id).Error; err!= nil{
-		if err.Error() == "record not found"{
+	var book Book
+	if err := helpers.DB.First(&book, id).Error; err != nil {
+		if err.Error() == "record not found" {
 			helpers.NotFoundError(ctx, "Book not found")
 			return
 		}
-		helpers.InternalServerError(ctx, "failed to fetch book",err.Error())
+		helpers.InternalServerError(ctx, "failed to fetch book", err.Error())
 	}
-	if err := database.DB.Delete(&book).Error; err!=nil{
+	if err := helpers.DB.Delete(&book).Error; err != nil {
 		helpers.InternalServerError(ctx, " failed to delete book", err.Error())
 		return
 	}
-	helpers.SuccessResponse(ctx, "book deleted successfully",book)
-
+	helpers.SuccessResponse(ctx, "book deleted successfully", book)
 
 }
 
-func BulkDeleteBooks(c *gin.Context){
-	var req struct{
-		IDs []uint `json:"ids" binding:"required"` 
+func BulkDeleteBooksService(c *gin.Context) {
+	var req struct {
+		IDs []uint `json:"ids" binding:"required"`
 	}
-	if err := c.ShouldBindJSON(&req); err !=nil{
-		helpers.ValidationError(c,err.Error())
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helpers.ValidationError(c, err.Error())
 		return
 	}
-	if err := database.DB.Delete(&[]models.Book{}, req.IDs).Error;err != nil{
+	if err := helpers.DB.Delete(&[]Book{}, req.IDs).Error; err != nil {
 		helpers.InternalServerError(c, "failed to delete book", err.Error())
 		return
 	}
-	helpers.SuccessResponse(c,"books deleted succesfully",gin.H{"delete_count" : len(req.IDs)})
+	helpers.SuccessResponse(c, "books deleted succesfully", gin.H{"delete_count": len(req.IDs)})
 
 }
+
 // SearchBooks godoc
 // @Summary      Cari Buku
 // @Description  Mencari buku berdasarkan keyword yang cocok dengan Judul ATAU Penulis.
@@ -307,27 +312,24 @@ func BulkDeleteBooks(c *gin.Context){
 // @Accept       json
 // @Produce      json
 // @Param        title query string true "Keyword pencarian (Judul atau Penulis)"
-// @Success      200   {array}  models.Book
+// @Success      200   {array}  Book
 // @Failure      400   {object} map[string]interface{} "Parameter title wajib diisi"
 // @Failure      500   {object} map[string]interface{} "Internal Server Error"
 // @Router       /books/search [get]
-func SearchBooks(c *gin.Context){
+func SearchBooksService(c *gin.Context) {
 	query := c.Query("title")
-	if query ==""{
+	if query == "" {
 		helpers.BadRequestError(c, "search query required ", "parameter harus diisi dengan title")
 		return
 	}
-	var books []models.Book
-	if err := database.DB.Where("title LIKE ? OR author LIKE ?","%"+query+"%", "%"+query+"%").Find(&books).Error;
-	err != nil{
-		helpers.InternalServerError(c, "failed to search book ",err.Error())
+	var books []Book
+	if err := helpers.DB.Where("title LIKE ? OR author LIKE ?", "%"+query+"%", "%"+query+"%").Find(&books).Error; err != nil {
+		helpers.InternalServerError(c, "failed to search book ", err.Error())
 		return
 	}
 	helpers.SuccessResponse(c, "search result", books)
 
 }
-
-
 
 // UploadBookImage godoc
 // @Summary      Upload Gambar Sampul Buku
@@ -343,7 +345,7 @@ func SearchBooks(c *gin.Context){
 // @Failure      500     {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/books/{id}/image [patch]
-func UploadBookImage(c *gin.Context) {
+func UploadBookImageService(c *gin.Context) {
 	id := c.Param("id")
 
 	// 1. Ambil file dari form-data
@@ -368,8 +370,8 @@ func UploadBookImage(c *gin.Context) {
 
 	// 4. Upload ke Cloudinary
 	resp, err := cld.Upload.Upload(c, file, uploader.UploadParams{
-		Folder: "library-app", // Nanti gambar masuk ke folder ini di Cloudinary
-        PublicID: "book-" + id, // (Opsional) Nama file di cloud
+		Folder:   "library-app", // Nanti gambar masuk ke folder ini di Cloudinary
+		PublicID: "book-" + id,  // (Opsional) Nama file di cloud
 	})
 
 	if err != nil {
@@ -378,8 +380,8 @@ func UploadBookImage(c *gin.Context) {
 	}
 
 	// 5. Update Database (Simpan URL HTTPS dari Cloudinary)
-    // resp.SecureURL adalah alamat gambar yang bisa diakses internet
-	if err := database.DB.Model(&models.Book{}).Where("id = ?", id).
+	// resp.SecureURL adalah alamat gambar yang bisa diakses internet
+	if err := helpers.DB.Model(&Book{}).Where("id = ?", id).
 		Update("image_url", resp.SecureURL).Error; err != nil {
 		helpers.InternalServerError(c, "Failed to update database", err.Error())
 		return

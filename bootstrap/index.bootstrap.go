@@ -2,18 +2,20 @@ package bootstrap
 
 import (
 	"fmt"
-	"gin-gonic/database"
-	"gin-gonic/helpers"
-	"gin-gonic/models"
-	"gin-gonic/routes"
-	"gin-gonic/utils"
 	"time"
+
+	"gin-gonic/helpers"
+	"gin-gonic/modules/books"
+	"gin-gonic/modules/loans"
+	"gin-gonic/modules/users"
+	"gin-gonic/modules"
+	"gin-gonic/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 func BootstrapApp() {
-	database.ConnectDatabase()
+	helpers.ConnectDatabase()
 
 	// Smart auto migration dengan handling untuk existing data
 	fmt.Println("Running smart auto migration...")
@@ -24,13 +26,13 @@ func BootstrapApp() {
 	fmt.Println("Auto migration completed successfully")
 
 	app := gin.Default()
-	app.Static("/uploads","./uploads")
+	app.Static("/uploads", "./uploads")
 	seedAdmin()
 	// Middleware untuk logging dan recovery
 	app.Use(gin.Logger())
 	app.Use(gin.Recovery())
 
-	routes.InitRoute(app)
+	modules.InitRoute(app)
 
 	fmt.Printf("Server starting on port %s\n", helpers.GetConfig("APP_PORT"))
 	app.Run(helpers.GetConfig("APP_PORT"))
@@ -40,9 +42,9 @@ func BootstrapApp() {
 func runSmartMigration() error {
 	// Cek apakah tabel users sudah ada dan memiliki data
 	var userCount int64
-	hasUsersTable := database.DB.Migrator().HasTable(&models.User{})
+	hasUsersTable := helpers.DB.Migrator().HasTable(&users.User{})
 	if hasUsersTable {
-		database.DB.Model(&models.User{}).Count(&userCount)
+		helpers.DB.Model(&users.User{}).Count(&userCount)
 	}
 
 	// Jika ada users existing tanpa password, beri password default
@@ -50,7 +52,7 @@ func runSmartMigration() error {
 		fmt.Printf("Found %d existing users, checking for password migration...\n", userCount)
 
 		// Cek apakah kolom password sudah ada
-		hasPasswordColumn := database.DB.Migrator().HasColumn(&models.User{}, "password")
+		hasPasswordColumn := helpers.DB.Migrator().HasColumn(&users.User{}, "password")
 
 		if !hasPasswordColumn {
 			fmt.Println("Adding password column to existing users table...")
@@ -58,8 +60,8 @@ func runSmartMigration() error {
 		}
 
 		// Cari users yang belum punya password
-		var usersWithoutPassword []models.User
-		database.DB.Where("password = '' OR password IS NULL").Find(&usersWithoutPassword)
+		var usersWithoutPassword []users.User
+		helpers.DB.Where("password = '' OR password IS NULL").Find(&usersWithoutPassword)
 
 		if len(usersWithoutPassword) > 0 {
 			fmt.Printf("Found %d users without passwords, setting default password...\n", len(usersWithoutPassword))
@@ -71,7 +73,7 @@ func runSmartMigration() error {
 			}
 
 			// Update password untuk users yang belum punya
-			result := database.DB.Model(&models.User{}).
+			result := helpers.DB.Model(&users.User{}).
 				Where("password = '' OR password IS NULL").
 				Update("password", hashedPassword)
 
@@ -89,7 +91,7 @@ func runSmartMigration() error {
 
 	// Jalankan auto migration normal
 	fmt.Println("Running GORM auto migration...")
-	err := database.DB.AutoMigrate(&models.User{}, &models.Book{}, &models.Loan{})
+	err := helpers.DB.AutoMigrate(&users.User{}, &books.Book{}, &loans.Loan{})
 	if err != nil {
 		return fmt.Errorf("auto migration failed: %v", err)
 	}
@@ -98,48 +100,45 @@ func runSmartMigration() error {
 	return nil
 }
 
-
-func seedAdmin(){
+func seedAdmin() {
 	adminEmail := helpers.GetConfig("ADMIN_EMAIL")
 	adminPassword := helpers.GetConfig("ADMIN_PASSWORD")
 	adminName := helpers.GetConfig("ADMIN_NAME")
 
 	// validasi env tidak diset
-	if adminEmail =="" ||adminPassword ==""{
+	if adminEmail == "" || adminPassword == "" {
 		fmt.Println("seeding skipped: ADMIN_EMAIL or ADMIN_PASSWORD not found in .env")
 	}
 	var count int64
 
 	//cek apakah admin sudah ada
-	database.DB.Model(&models.User{}).Where("role =?", "admin").Count(&count)
+	helpers.DB.Model(&users.User{}).Where("role =?", "admin").Count(&count)
 
-	if count == 0{
+	if count == 0 {
 		fmt.Println("No admin found. Creating admin from environment variable")
 		//hash password dari env
 		hashedPassword, err := utils.HashPassword(adminPassword)
-		if err != nil{
-			fmt.Printf("Error hashing password : %v\n",err)
+		if err != nil {
+			fmt.Printf("Error hashing password : %v\n", err)
 			return
 		}
-		admin := models.User{
+		admin := users.User{
 			Name:      adminName,
 			Email:     adminEmail,
 			Password:  hashedPassword,
 			Address:   "System Administrator",
-			Role:      "admin", 
+			Role:      "admin",
 			BornDate:  time.Now(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
-		if err := database.DB.Create(&admin).Error;err!=nil{
-			fmt.Printf("failed to create admin :%v \n",err)
-		}else{
+		if err := helpers.DB.Create(&admin).Error; err != nil {
+			fmt.Printf("failed to create admin :%v \n", err)
+		} else {
 			fmt.Println("admin account seeded succesfully")
 		}
 
-	
-	
-	}else{
+	} else {
 		fmt.Println("Admin account check: OK (Admin already exists")
 	}
 

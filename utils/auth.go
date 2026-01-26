@@ -5,8 +5,6 @@ import (
 	"os"
 	"time"
 
-	"gin-gonic/models"
-
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,12 +32,12 @@ func CheckPassword(password, hash string) bool {
 }
 
 // GenerateJWT membuat JWT token untuk user
-func GenerateJWT(user models.User) (string, error) {
+func GenerateJWT(userID uint, email string, name string, role string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"email":   user.Email,
-		"name":    user.Name,
-		"role":    user.Role,
+		"user_id": userID,
+		"email":   email,
+		"name":    name,
+		"role":    role,
 		"exp":     time.Now().Add(time.Hour * 24).Unix(), // Token expires in 24 hours
 		"iat":     time.Now().Unix(),
 	})

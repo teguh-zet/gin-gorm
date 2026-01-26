@@ -1,20 +1,18 @@
-package user_controllers
+package users
 
 import (
 	"net/http"
 	"strconv"
 	"time"
 
-	"gin-gonic/database"
 	"gin-gonic/helpers"
-	"gin-gonic/models"
 	"gin-gonic/utils"
 
 	"github.com/gin-gonic/gin"
 )
 
 // GetAllUsers mengambil semua data user dengan pagination
-func GetAllUsers2(c *gin.Context) {
+func GetAllUsers2Service(c *gin.Context) {
 	page := c.DefaultQuery("page", "1")
 	limit := c.DefaultQuery("limit", "10")
 
@@ -23,15 +21,15 @@ func GetAllUsers2(c *gin.Context) {
 
 	offset := (pageNum - 1) * limitNum
 
-	var users []models.User
+	var users []User
 	var total int64
 
-	if err := database.DB.Offset(offset).Limit(limitNum).Find(&users).Error; err != nil {
+	if err := helpers.DB.Offset(offset).Limit(limitNum).Find(&users).Error; err != nil {
 		helpers.InternalServerError(c, "Failed to fetch users", err.Error())
 		return
 	}
 
-	database.DB.Model(&models.User{}).Count(&total)
+	helpers.DB.Model(&User{}).Count(&total)
 
 	helpers.SuccessResponse(c, "Users retrieved successfully", gin.H{
 		"data":  users,
@@ -59,7 +57,7 @@ func GetAllUsers2(c *gin.Context) {
 // @Failure      500       {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/users [get]
-func GetAllUsers(c *gin.Context) {
+func GetAllUsersService(c *gin.Context) {
 	// Pagination parameters
 	page := c.DefaultQuery("page", "1")
 	limit := c.DefaultQuery("limit", "10")
@@ -103,10 +101,10 @@ func GetAllUsers(c *gin.Context) {
 		order = "DESC"
 	}
 
-	var users []models.User
+	var users []User
 	var total int64
 
-	if err := database.DB.
+	if err := helpers.DB.
 		Order(sortBy + " " + order).
 		Offset(offset).
 		Limit(limitNum).
@@ -115,7 +113,7 @@ func GetAllUsers(c *gin.Context) {
 		return
 	}
 
-	database.DB.Model(&models.User{}).Count(&total)
+	helpers.DB.Model(&User{}).Count(&total)
 
 	totalPages := (total + int64(limitNum) - 1) / int64(limitNum)
 
@@ -137,13 +135,13 @@ func GetAllUsers(c *gin.Context) {
 }
 
 // with sorting
-func GetAllUsers3(c *gin.Context) {
+func GetAllUsers3Service(c *gin.Context) {
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 	order := c.DefaultQuery("order", "ASC") // ASC atau DESC
 
-	var users []models.User
+	var users []User
 
-	if err := database.DB.Order(sortBy + " " + order).Find(&users).Error; err != nil {
+	if err := helpers.DB.Order(sortBy + " " + order).Find(&users).Error; err != nil {
 		helpers.InternalServerError(c, "Failed to fetch users", err.Error())
 		return
 	}
@@ -152,7 +150,7 @@ func GetAllUsers3(c *gin.Context) {
 }
 
 // GetUserByID mengambil user berdasarkan ID
-func GetUserByID(c *gin.Context) {
+func GetUserByIDService(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
@@ -160,8 +158,8 @@ func GetUserByID(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := database.DB.First(&user, id).Error; err != nil {
+	var user User
+	if err := helpers.DB.First(&user, id).Error; err != nil {
 		if err.Error() == "record not found" {
 			helpers.NotFoundError(c, "User not found")
 			return
@@ -179,14 +177,14 @@ func GetUserByID(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request body models.CreateUserRequest true "Data Registrasi User"
-// @Success      201  {object} models.User
+// @Param        request body CreateUserRequest true "Data Registrasi User"
+// @Success      201  {object} User
 // @Failure      400  {object} map[string]interface{} "Validasi Error / Format Tanggal Salah"
 // @Failure      409  {object} map[string]interface{} "Email sudah terdaftar"
 // @Failure      500  {object} map[string]interface{} "Internal Server Error"
 // @Router       /auth/register [post]
-func CreateUser(c *gin.Context) {
-	var req models.CreateUserRequest
+func CreateUserService(c *gin.Context) {
+	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(c, err.Error())
 		return
@@ -206,7 +204,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	user := models.User{
+	user := User{
 		Name:     req.Name,
 		Address:  req.Address,
 		Email:    req.Email,
@@ -214,9 +212,9 @@ func CreateUser(c *gin.Context) {
 		BornDate: bornDate,
 	}
 
-	if err := database.DB.Create(&user).Error; err != nil {
+	if err := helpers.DB.Create(&user).Error; err != nil {
 		// Check for duplicate email
-		if err.Error() == "UNIQUE constraint failed: users.email" || err.Error() == "duplicate key value violates unique constraint \"users_email_key\"" {
+		if err.Error() == "UNIQUE constraint failed: email" || err.Error() == "duplicate key value violates unique constraint \"users_email_key\"" {
 			helpers.ErrorResponse(c, http.StatusConflict, "Email already exists", "Email must be unique")
 			return
 		}
@@ -236,8 +234,8 @@ func CreateUser(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
 // @Param        id path int true "User ID"
-// @Param        request body models.UpdateUserRequest true "Data yang ingin diupdate"
-// @Success      200  {object} models.User
+// @Param        request body UpdateUserRequest true "Data yang ingin diupdate"
+// @Success      200  {object} User
 // @Failure      400  {object} map[string]interface{} "ID Salah / Format Tanggal Salah / Tidak ada field update"
 // @Failure      401  {object} map[string]interface{} "Unauthorized"
 // @Failure      404  {object} map[string]interface{} "User tidak ditemukan"
@@ -245,7 +243,7 @@ func CreateUser(c *gin.Context) {
 // @Failure      500  {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /users/{id} [put]
-func UpdateUser(c *gin.Context) {
+func UpdateUserService(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
@@ -253,8 +251,8 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := database.DB.First(&user, id).Error; err != nil {
+	var user User
+	if err := helpers.DB.First(&user, id).Error; err != nil {
 		if err.Error() == "record not found" {
 			helpers.NotFoundError(c, "User not found")
 			return
@@ -263,7 +261,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	var req models.UpdateUserRequest
+	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(c, err.Error())
 		return
@@ -279,8 +277,8 @@ func UpdateUser(c *gin.Context) {
 	}
 	if req.Email != "" {
 		// Check if email already exists for other users
-		var existingUser models.User
-		if err := database.DB.Where("email = ? AND id != ?", req.Email, id).First(&existingUser).Error; err == nil {
+		var existingUser User
+		if err := helpers.DB.Where("email = ? AND id != ?", req.Email, id).First(&existingUser).Error; err == nil {
 			helpers.ErrorResponse(c, http.StatusConflict, "Email already exists", "Email must be unique")
 			return
 		}
@@ -300,13 +298,13 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Model(&user).Updates(updates).Error; err != nil {
+	if err := helpers.DB.Model(&user).Updates(updates).Error; err != nil {
 		helpers.InternalServerError(c, "Failed to update user", err.Error())
 		return
 	}
 
 	// Fetch updated user
-	database.DB.First(&user, id)
+	helpers.DB.First(&user, id)
 	helpers.SuccessResponse(c, "User updated successfully", user)
 }
 
@@ -327,7 +325,7 @@ func UpdateUser(c *gin.Context) {
 // @Failure      500  {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/users/{id} [delete]
-func DeleteUser(c *gin.Context) {
+func DeleteUserService(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.ParseUint(idParam, 10, 32)
 	if err != nil {
@@ -335,8 +333,8 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := database.DB.First(&user, id).Error; err != nil {
+	var user User
+	if err := helpers.DB.First(&user, id).Error; err != nil {
 		if err.Error() == "record not found" {
 			helpers.NotFoundError(c, "User not found")
 			return
@@ -345,7 +343,7 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&user).Error; err != nil {
+	if err := helpers.DB.Delete(&user).Error; err != nil {
 		helpers.InternalServerError(c, "Failed to delete user", err.Error())
 		return
 	}
@@ -361,20 +359,20 @@ func DeleteUser(c *gin.Context) {
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
 // @Param        name query string true "Keyword pencarian (Nama atau Email)"
-// @Success      200  {array} models.User
+// @Success      200  {array} User
 // @Failure      400  {object} map[string]interface{} "Parameter query kosong"
 // @Failure      401  {object} map[string]interface{} "Unauthorized"
 // @Failure      500  {object} map[string]interface{} "Internal Server Error"
 // @Security     BearerAuth
 // @Router       /admin/users/search [get]
-func SearchUsers(c *gin.Context) {
+func SearchUsersService(c *gin.Context) {
 	query := c.Query("name")
 	if query == "" {
 		helpers.BadRequestError(c, "search query required", "Parameter 'name' harus diisi")
 		return
 	}
-	var users []models.User
-	if err := database.DB.Where("name LIKE ? OR email LIKE ?", "%"+query+"%", "%"+query+"%").Find(&users).Error; err != nil {
+	var users []User
+	if err := helpers.DB.Where("name LIKE ? OR email LIKE ?", "%"+query+"%", "%"+query+"%").Find(&users).Error; err != nil {
 		helpers.InternalServerError(c, "failed to search users", err.Error())
 		return
 	}
@@ -385,10 +383,11 @@ func SearchUsers(c *gin.Context) {
 //user staticstic
 
 type UserStats struct {
-	TotalUsers    int64         `json:"total_users"`
-	NewUsersToday int64         `json:"new_users_today"`
-	LatestUsers   []models.User `json:"latest_users"`
+	TotalUsers    int64  `json:"total_users"`
+	NewUsersToday int64  `json:"new_users_today"`
+	LatestUsers   []User `json:"latest_users"`
 }
+
 // GetUserStats godoc
 // @Summary      Statistik User (Admin)
 // @Description  Menampilkan total user, user baru hari ini, dan 5 user terakhir.
@@ -401,21 +400,21 @@ type UserStats struct {
 // @Failure      403  {object} map[string]interface{} "Forbidden (Bukan Admin)"
 // @Security     BearerAuth
 // @Router       /admin/stats [get]
-func GetUserStats(c *gin.Context) {
+func GetUserStatsService(c *gin.Context) {
 	var totalUsers int64
 	var newUsersToday int64
-	var latestUsers []models.User
+	var latestUsers []User
 
 	// Total users
-	database.DB.Model(&models.User{}).Count(&totalUsers)
+	helpers.DB.Model(&User{}).Count(&totalUsers)
 
 	// Users created today
 	today := time.Now().Format("2006-01-02")
-	database.DB.Where("DATE(created_at) = ?", today).
-		Model(&models.User{}).Count(&newUsersToday)
+	helpers.DB.Where("DATE(created_at) = ?", today).
+		Model(&User{}).Count(&newUsersToday)
 
 	// Latest 5 users
-	database.DB.Order("created_at DESC").Limit(5).Find(&latestUsers)
+	helpers.DB.Order("created_at DESC").Limit(5).Find(&latestUsers)
 
 	stats := UserStats{
 		TotalUsers:    totalUsers,
@@ -432,21 +431,21 @@ func GetUserStats(c *gin.Context) {
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        request body models.LoginRequest true "Login Credentials"
-// @Success      200  {object} models.LoginResponse
+// @Param        request body LoginRequest true "Login Credentials"
+// @Success      200  {object} LoginResponse
 // @Failure      400  {object} map[string]interface{}
 // @Failure      401  {object} map[string]interface{}
 // @Router       /auth/login [post]
-func Login(c *gin.Context) {
-	var req models.LoginRequest
+func LoginService(c *gin.Context) {
+	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helpers.ValidationError(c, err.Error())
 		return
 	}
 
 	// Cari user berdasarkan email
-	var user models.User
-	if err := database.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
+	var user User
+	if err := helpers.DB.Where("email = ?", req.Email).First(&user).Error; err != nil {
 		if err.Error() == "record not found" {
 			helpers.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", nil)
 			return
@@ -462,14 +461,14 @@ func Login(c *gin.Context) {
 	}
 
 	// Generate JWT token
-	token, err := utils.GenerateJWT(user)
+	token, err := utils.GenerateJWT(user.ID, user.Email, user.Name, user.Role)
 	if err != nil {
 		helpers.InternalServerError(c, "Failed to generate token", err.Error())
 		return
 	}
 
 	// Response dengan token dan user info
-	loginResponse := models.LoginResponse{
+	loginResponse := LoginResponse{
 		Token: token,
 		User:  user,
 	}
@@ -485,13 +484,13 @@ func Login(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        Authorization header string true "Bearer Token"
-// @Success      200  {object} models.User
+// @Success      200  {object} User
 // @Failure      401  {object} map[string]interface{} "Token tidak ada / tidak valid"
 // @Failure      404  {object} map[string]interface{} "User tidak ditemukan"
 // @Failure      500  {object} map[string]interface{} "Gagal mengambil data"
 // @Security     BearerAuth
 // @Router       /users/profile [get]
-func GetProfile(c *gin.Context) {
+func GetProfileService(c *gin.Context) {
 	// Ambil user ID dari JWT token (sudah di-set oleh middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -505,8 +504,8 @@ func GetProfile(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := database.DB.First(&user, uint(userIDUint)).Error; err != nil {
+	var user User
+	if err := helpers.DB.First(&user, uint(userIDUint)).Error; err != nil {
 		if err.Error() == "record not found" {
 			helpers.NotFoundError(c, "User not found")
 			return
