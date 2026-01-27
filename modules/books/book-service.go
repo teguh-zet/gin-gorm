@@ -1,26 +1,27 @@
 package books
 
 import (
-	"strconv"
+	"context"
+	"errors"
+	"mime/multipart"
 
 	"gin-gonic/helper"
 
 	"github.com/cloudinary/cloudinary-go/v2"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type BookService interface {
-	GetList(ctx *gin.Context)
-	GetList2(ctx *gin.Context)
-	GetByID(ctx *gin.Context)
-	Create(ctx *gin.Context)
-	Update(ctx *gin.Context)
-	Delete(ctx *gin.Context)
-	BulkDelete(ctx *gin.Context)
-	Search(ctx *gin.Context)
-	UploadImage(ctx *gin.Context)
+	GetList() ([]Book, error)
+	GetList2(page, limit int, sortBy, order string, available bool) ([]Book, int64, error)
+	GetByID(id string) (*Book, error)
+	Create(input *CreateBookRequest) (*Book, error)
+	Update(id string, input *UpdateBookRequest) (*Book, error)
+	Delete(id string) error
+	BulkDelete(ids []int) error
+	Search(query string) ([]Book, error)
+	UploadImage(id string, file *multipart.FileHeader) (*Book, error)
 }
 
 type bookService struct {
@@ -31,32 +32,23 @@ func NewBookService(db *gorm.DB) BookService {
 	return &bookService{db: db}
 }
 
-func (s *bookService) GetList(c *gin.Context) {
-	var book []Book
-	if err := s.db.Find(&book).Error; err != nil {
-		helper.InternalServerError(c, "Failed to fetch book", err.Error())
-		return
+func (s *bookService) GetList() ([]Book, error) {
+	var books []Book
+	if err := s.db.Find(&books).Error; err != nil {
+		return nil, err
 	}
-	helper.SuccessResponse(c, "Book retrieved successfully", book)
+	return books, nil
 }
 
-func (s *bookService) GetList2(c *gin.Context) {
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")
-	sortBy := c.DefaultQuery("sort_by", "id")
-	order := c.DefaultQuery("order", "DESC")
-	available := c.DefaultQuery("available", "false")
-
-	pageNum, err := strconv.Atoi(page)
-	if err != nil || pageNum < 1 {
-		pageNum = 1
+func (s *bookService) GetList2(page, limit int, sortBy, order string, available bool) ([]Book, int64, error) {
+	if page < 1 {
+		page = 1
 	}
-	limitNum, err := strconv.Atoi(limit)
-	if err != nil || limitNum < 1 {
-		limitNum = 10
+	if limit < 1 {
+		limit = 10
 	}
-	if limitNum > 100 {
-		limitNum = 100
+	if limit > 100 {
+		limit = 100
 	}
 
 	allowedSort := map[string]bool{
@@ -72,171 +64,109 @@ func (s *bookService) GetList2(c *gin.Context) {
 		order = "DESC"
 	}
 
-	offset := (pageNum - 1) * limitNum
+	offset := (page - 1) * limit
 
 	query := s.db.Model(&Book{})
-	if available == "true" {
+	if available {
 		query = query.Where("stock > ?", 0)
 	}
 
 	var books []Book
 	var total int64
-
-	query.Count(&total)
-	if err := query.Offset(offset).Limit(limitNum).Order(sortBy + " " + order).Find(&books).Error; err != nil {
-		helper.InternalServerError(c, "Failed to fetch books", err.Error())
-		return
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := query.Offset(offset).Limit(limit).Order(sortBy + " " + order).Find(&books).Error; err != nil {
+		return nil, 0, err
 	}
 
-	helper.SuccessResponse(c, "Books retrieved successfully", gin.H{
-		"data":  books,
-		"total": total,
-		"page":  pageNum,
-		"limit": limitNum,
-	})
+	return books, total, nil
 }
 
-func (s *bookService) GetByID(c *gin.Context) {
-	id := c.Param("id")
-
+func (s *bookService) GetByID(id string) (*Book, error) {
 	var book Book
 	if err := s.db.First(&book, id).Error; err != nil {
-		helper.ErrorResponse(c, 404, "Book not found", err.Error())
-		return
+		return nil, errors.New("book not found")
 	}
-	helper.SuccessResponse(c, "Book retrieved successfully", book)
+	return &book, nil
 }
 
-func (s *bookService) Create(c *gin.Context) {
-	var req CreateBookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
-	}
-
-	book := Book{
-		Title:       req.Title,
-		Author:      req.Author,
-		Stock:       req.Stock,
+func (s *bookService) Create(input *CreateBookRequest) (*Book, error) {
+	book := &Book{
+		Title:       input.Title,
+		Author:      input.Author,
+		Stock:       input.Stock,
 		BorrowCount: 0,
 	}
 
-	if err := s.db.Create(&book).Error; err != nil {
-		helper.InternalServerError(c, "Failed to create book", err.Error())
-		return
+	if err := s.db.Create(book).Error; err != nil {
+		return nil, err
 	}
 
-	helper.CreatedResponse(c, "Book successfully created", book)
+	return book, nil
 }
 
-func (s *bookService) Update(c *gin.Context) {
-	id := c.Param("id")
-
+func (s *bookService) Update(id string, input *UpdateBookRequest) (*Book, error) {
 	var book Book
 	if err := s.db.First(&book, id).Error; err != nil {
-		helper.ErrorResponse(c, 404, "Book not found", err.Error())
-		return
+		return nil, errors.New("book not found")
 	}
 
-	var req UpdateBookRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
+	if input.Title != "" {
+		book.Title = input.Title
 	}
-
-	if req.Title != "" {
-		book.Title = req.Title
+	if input.Author != "" {
+		book.Author = input.Author
 	}
-	if req.Author != "" {
-		book.Author = req.Author
-	}
-	if req.Stock != 0 {
-		book.Stock = req.Stock
+	if input.Stock != 0 {
+		book.Stock = input.Stock
 	}
 
 	if err := s.db.Save(&book).Error; err != nil {
-		helper.InternalServerError(c, "Failed to update book", err.Error())
-		return
+		return nil, err
 	}
 
-	helper.SuccessResponse(c, "Book updated successfully", book)
+	return &book, nil
 }
 
-func (s *bookService) Delete(c *gin.Context) {
-	id := c.Param("id")
-
+func (s *bookService) Delete(id string) error {
 	var book Book
 	if err := s.db.First(&book, id).Error; err != nil {
-		helper.ErrorResponse(c, 404, "Book not found", err.Error())
-		return
+		return errors.New("book not found")
 	}
 
-	if err := s.db.Delete(&book).Error; err != nil {
-		helper.InternalServerError(c, "Failed to delete book", err.Error())
-		return
-	}
-
-	helper.SuccessResponse(c, "Book deleted successfully", book)
+	return s.db.Delete(&book).Error
 }
 
-func (s *bookService) BulkDelete(c *gin.Context) {
-	var req struct {
-		IDs []int `json:"ids"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
-	}
-
-	if err := s.db.Delete(&[]Book{}, req.IDs).Error; err != nil {
-		helper.InternalServerError(c, "Failed to delete books", err.Error())
-		return
-	}
-
-	helper.SuccessResponse(c, "Books deleted successfully", req.IDs)
+func (s *bookService) BulkDelete(ids []int) error {
+	return s.db.Delete(&[]Book{}, ids).Error
 }
 
-func (s *bookService) Search(c *gin.Context) {
-	query := c.Query("q")
+func (s *bookService) Search(query string) ([]Book, error) {
 	if query == "" {
-		helper.BadRequestError(c, "Query parameter q is required", nil)
-		return
+		return nil, errors.New("query parameter q is required")
 	}
 
 	var books []Book
 	if err := s.db.Where("title ILIKE ? OR author ILIKE ?", "%"+query+"%", "%"+query+"%").Find(&books).Error; err != nil {
-		helper.InternalServerError(c, "Failed to search books", err.Error())
-		return
+		return nil, err
 	}
-
-	helper.SuccessResponse(c, "Search results", books)
+	return books, nil
 }
 
-func (s *bookService) UploadImage(c *gin.Context) {
-	id := c.Param("id")
-
+func (s *bookService) UploadImage(id string, file *multipart.FileHeader) (*Book, error) {
 	var book Book
 	if err := s.db.First(&book, id).Error; err != nil {
-		helper.NotFoundError(c, "Book not found")
-		return
-	}
-
-	file, err := c.FormFile("image")
-	if err != nil {
-		helper.BadRequestError(c, "Image file is required", err.Error())
-		return
+		return nil, errors.New("book not found")
 	}
 
 	config, err := helper.LoadConfig(".")
 	if err != nil {
-		helper.InternalServerError(c, "Failed to load config", err.Error())
-		return
+		return nil, errors.New("failed to load config")
 	}
 
 	if config.CloudinaryCloudName == "" || config.CloudinaryAPIKey == "" || config.CloudinaryAPISecret == "" {
-		helper.InternalServerError(c, "Cloudinary config missing", "Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET")
-		return
+		return nil, errors.New("cloudinary config missing")
 	}
 
 	cld, err := cloudinary.NewFromParams(
@@ -245,21 +175,24 @@ func (s *bookService) UploadImage(c *gin.Context) {
 		config.CloudinaryAPISecret,
 	)
 	if err != nil {
-		helper.InternalServerError(c, "Failed to initialize Cloudinary", err.Error())
-		return
+		return nil, err
 	}
 
-	uploadResult, err := cld.Upload.Upload(c, file, uploader.UploadParams{})
+	fileReader, err := file.Open()
 	if err != nil {
-		helper.InternalServerError(c, "Failed to upload image", err.Error())
-		return
+		return nil, err
+	}
+	defer fileReader.Close()
+
+	uploadResult, err := cld.Upload.Upload(context.Background(), fileReader, uploader.UploadParams{})
+	if err != nil {
+		return nil, err
 	}
 
 	book.ImageURL = uploadResult.SecureURL
 	if err := s.db.Save(&book).Error; err != nil {
-		helper.InternalServerError(c, "Failed to save image URL", err.Error())
-		return
+		return nil, err
 	}
 
-	helper.SuccessResponse(c, "Book image uploaded successfully", book)
+	return &book, nil
 }

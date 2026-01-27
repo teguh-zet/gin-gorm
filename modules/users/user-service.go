@@ -1,28 +1,26 @@
 package users
 
 import (
-	"net/http"
-	"strconv"
+	"errors"
+	"fmt"
 	"time"
 
-	"gin-gonic/helper"
 	"gin-gonic/utils"
 
-	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type UserService interface {
-	Create(ctx *gin.Context)
-	Update(ctx *gin.Context)
-	Delete(ctx *gin.Context)
-	GetList(ctx *gin.Context)
-	GetList2(ctx *gin.Context)
-	GetByID(ctx *gin.Context)
-	Search(ctx *gin.Context)
-	Login(ctx *gin.Context)
-	GetProfile(ctx *gin.Context)
-	GetStats(ctx *gin.Context)
+	Create(input *CreateUserRequest) (*User, error)
+	Update(id string, input *UpdateUserRequest) (*User, error)
+	Delete(id string) error
+	GetList(page, limit int, sortBy, order string) ([]User, int64, error)
+	GetList2(page, limit int) ([]User, int64, error)
+	GetByID(id string) (*User, error)
+	Search(query string) ([]User, error)
+	Login(input *LoginRequest) (*LoginResponse, error)
+	GetProfile(userID uint) (*User, error)
+	GetStats() (*UserStats, error)
 }
 
 type userService struct {
@@ -33,55 +31,91 @@ func NewUserService(db *gorm.DB) UserService {
 	return &userService{db: db}
 }
 
-func (s *userService) GetList2(c *gin.Context) {
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")
-
-	pageNum, _ := strconv.Atoi(page)
-	limitNum, _ := strconv.Atoi(limit)
-	if pageNum < 1 {
-		pageNum = 1
-	}
-	if limitNum < 1 {
-		limitNum = 10
+func (s *userService) Create(input *CreateUserRequest) (*User, error) {
+	bornDate, err := time.Parse("2006-01-02", input.BornDate)
+	if err != nil {
+		return nil, errors.New("born_date must be in YYYY-MM-DD format")
 	}
 
-	offset := (pageNum - 1) * limitNum
-
-	var users []User
-	var total int64
-
-	if err := s.db.Offset(offset).Limit(limitNum).Find(&users).Error; err != nil {
-		helper.InternalServerError(c, "Failed to fetch users", err.Error())
-		return
+	var existing User
+	if err := s.db.Where("email = ?", input.Email).First(&existing).Error; err == nil {
+		return nil, errors.New("email already exists")
 	}
 
-	s.db.Model(&User{}).Count(&total)
+	hashedPassword, err := utils.HashPassword(input.Password)
+	if err != nil {
+		return nil, err
+	}
 
-	helper.SuccessResponse(c, "Users retrieved successfully", gin.H{
-		"data":  users,
-		"total": total,
-		"page":  pageNum,
-		"limit": limitNum,
-	})
+	user := &User{
+		Name:      input.Name,
+		Address:   input.Address,
+		Email:     input.Email,
+		Password:  hashedPassword,
+		BornDate:  bornDate,
+		Role:      "user",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.db.Create(user).Error; err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 
-func (s *userService) GetList(c *gin.Context) {
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")
-	sortBy := c.DefaultQuery("sort_by", "created_at")
-	order := c.DefaultQuery("order", "DESC")
+func (s *userService) Update(id string, input *UpdateUserRequest) (*User, error) {
+	var user User
+	if err := s.db.Where("id = ?", id).First(&user).Error; err != nil {
+		return nil, errors.New("data tidak ditemukan")
+	}
 
-	pageNum, err := strconv.Atoi(page)
-	if err != nil || pageNum < 1 {
-		pageNum = 1
+	if input.Name != "" {
+		user.Name = input.Name
 	}
-	limitNum, err := strconv.Atoi(limit)
-	if err != nil || limitNum < 1 {
-		limitNum = 10
+	if input.Address != "" {
+		user.Address = input.Address
 	}
-	if limitNum > 100 {
-		limitNum = 100
+	if input.Email != "" {
+		var existing User
+		if err := s.db.Where("email = ? AND id <> ?", input.Email, id).First(&existing).Error; err == nil {
+			return nil, errors.New("email already exists")
+		}
+		user.Email = input.Email
+	}
+	if input.BornDate != "" {
+		bornDate, err := time.Parse("2006-01-02", input.BornDate)
+		if err != nil {
+			return nil, errors.New("born_date must be in YYYY-MM-DD format")
+		}
+		user.BornDate = bornDate
+	}
+
+	user.UpdatedAt = time.Now()
+
+	if err := s.db.Save(&user).Error; err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (s *userService) Delete(id string) error {
+	var user User
+	if err := s.db.Where("id = ?", id).First(&user).Error; err != nil {
+		return errors.New("data tidak ditemukan")
+	}
+
+	return s.db.Delete(&user).Error
+}
+
+func (s *userService) GetList(page, limit int, sortBy, order string) ([]User, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
 	}
 
 	allowedSort := map[string]bool{
@@ -100,233 +134,92 @@ func (s *userService) GetList(c *gin.Context) {
 		order = "DESC"
 	}
 
-	offset := (pageNum - 1) * limitNum
+	offset := (page - 1) * limit
 
 	var users []User
 	var total int64
 
 	query := s.db.Model(&User{})
-	query.Count(&total)
-
-	if err := query.Offset(offset).Limit(limitNum).Order(sortBy + " " + order).Find(&users).Error; err != nil {
-		helper.InternalServerError(c, "Failed to fetch users", err.Error())
-		return
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	helper.SuccessResponse(c, "Users retrieved successfully", gin.H{
-		"data":  users,
-		"total": total,
-		"page":  pageNum,
-		"limit": limitNum,
-	})
+	if err := query.Offset(offset).Limit(limit).Order(sortBy + " " + order).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }
 
-func (s *userService) GetByID(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
-	if err != nil {
-		helper.BadRequestError(c, "Invalid user ID", "ID must be a number")
-		return
+func (s *userService) GetList2(page, limit int) ([]User, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
 	}
 
+	offset := (page - 1) * limit
+
+	var users []User
+	var total int64
+
+	if err := s.db.Offset(offset).Limit(limit).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	s.db.Model(&User{}).Count(&total)
+
+	return users, total, nil
+}
+
+func (s *userService) GetByID(id string) (*User, error) {
 	var user User
-	if err := s.db.First(&user, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			helper.NotFoundError(c, "User not found")
-			return
-		}
-		helper.InternalServerError(c, "Failed to fetch user", err.Error())
-		return
+	if err := s.db.Where("id = ?", id).First(&user).Error; err != nil {
+		return nil, errors.New("data tidak ditemukan")
 	}
 
-	helper.SuccessResponse(c, "User retrieved successfully", user)
+	return &user, nil
 }
 
-func (s *userService) Create(c *gin.Context) {
-	var req CreateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
-	}
-
-	bornDate, err := time.Parse("2006-01-02", req.BornDate)
-	if err != nil {
-		helper.BadRequestError(c, "Invalid date format", "born_date must be in YYYY-MM-DD format")
-		return
-	}
-
-	hashedPassword, err := utils.HashPassword(req.Password)
-	if err != nil {
-		helper.InternalServerError(c, "Failed to process password", err.Error())
-		return
-	}
-
-	user := User{
-		Name:     req.Name,
-		Address:  req.Address,
-		Email:    req.Email,
-		Password: hashedPassword,
-		BornDate: bornDate,
-		Role:     "user",
-	}
-
-	if err := s.db.Create(&user).Error; err != nil {
-		helper.InternalServerError(c, "Failed to create user", err.Error())
-		return
-	}
-
-	helper.CreatedResponse(c, "User created successfully", user)
-}
-
-func (s *userService) Update(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
-	if err != nil {
-		helper.BadRequestError(c, "Invalid user ID", "ID must be a number")
-		return
-	}
-
-	var user User
-	if err := s.db.First(&user, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			helper.NotFoundError(c, "User not found")
-			return
-		}
-		helper.InternalServerError(c, "Failed to fetch user", err.Error())
-		return
-	}
-
-	var req UpdateUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
-	}
-
-	if req.Name != "" {
-		user.Name = req.Name
-	}
-	if req.Address != "" {
-		user.Address = req.Address
-	}
-	if req.Email != "" {
-		var existing User
-		if err := s.db.Where("email = ? AND id != ?", req.Email, id).First(&existing).Error; err == nil {
-			helper.ErrorResponse(c, http.StatusConflict, "Email already exists", "Email must be unique")
-			return
-		}
-		user.Email = req.Email
-	}
-	if req.BornDate != "" {
-		bornDate, err := time.Parse("2006-01-02", req.BornDate)
-		if err != nil {
-			helper.BadRequestError(c, "Invalid date format", "born_date must be in YYYY-MM-DD format")
-			return
-		}
-		user.BornDate = bornDate
-	}
-
-	if err := s.db.Save(&user).Error; err != nil {
-		helper.InternalServerError(c, "Failed to update user", err.Error())
-		return
-	}
-
-	helper.SuccessResponse(c, "User updated successfully", user)
-}
-
-func (s *userService) Delete(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 32)
-	if err != nil {
-		helper.BadRequestError(c, "Invalid user ID", "ID must be a number")
-		return
-	}
-
-	var user User
-	if err := s.db.First(&user, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			helper.NotFoundError(c, "User not found")
-			return
-		}
-		helper.InternalServerError(c, "Failed to fetch user", err.Error())
-		return
-	}
-
-	if err := s.db.Delete(&user).Error; err != nil {
-		helper.InternalServerError(c, "Failed to delete user", err.Error())
-		return
-	}
-
-	helper.SuccessResponse(c, "User deleted successfully", gin.H{"id": id})
-}
-
-func (s *userService) Search(c *gin.Context) {
-	query := c.Query("q")
+func (s *userService) Search(query string) ([]User, error) {
 	if query == "" {
-		helper.BadRequestError(c, "Query parameter q is required", nil)
-		return
+		return nil, errors.New("query parameter q is required")
 	}
 
 	var users []User
 	if err := s.db.Where("name ILIKE ? OR email ILIKE ?", "%"+query+"%", "%"+query+"%").Find(&users).Error; err != nil {
-		helper.InternalServerError(c, "Failed to search users", err.Error())
-		return
+		return nil, err
 	}
 
-	helper.SuccessResponse(c, "Search results", users)
+	return users, nil
 }
 
-func (s *userService) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidationError(c, err.Error())
-		return
-	}
-
+func (s *userService) Login(input *LoginRequest) (*LoginResponse, error) {
 	var user User
-	if err := s.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", nil)
-		return
+	if err := s.db.Where("email = ?", input.Email).First(&user).Error; err != nil {
+		return nil, errors.New("invalid email or password")
 	}
 
-	if !utils.CheckPassword(req.Password, user.Password) {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", nil)
-		return
+	if !utils.CheckPassword(input.Password, user.Password) {
+		return nil, errors.New("invalid email or password")
 	}
 
 	token, err := utils.GenerateJWT(user.ID, user.Email, user.Name, user.Role)
 	if err != nil {
-		helper.InternalServerError(c, "Failed to generate token", err.Error())
-		return
+		return nil, err
 	}
 
-	loginResponse := LoginResponse{Token: token, User: user}
-	helper.SuccessResponse(c, "Login successful", loginResponse)
+	return &LoginResponse{Token: token, User: user}, nil
 }
 
-func (s *userService) GetProfile(c *gin.Context) {
-	userID, exists := c.Get("user_id")
-	if !exists {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "User not authenticated", nil)
-		return
-	}
-
-	userIDUint, ok := userID.(float64)
-	if !ok {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Invalid user ID", nil)
-		return
-	}
-
+func (s *userService) GetProfile(userID uint) (*User, error) {
 	var user User
-	if err := s.db.First(&user, uint(userIDUint)).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			helper.NotFoundError(c, "User not found")
-			return
-		}
-		helper.InternalServerError(c, "Failed to fetch user", err.Error())
-		return
+	if err := s.db.First(&user, userID).Error; err != nil {
+		return nil, errors.New("data tidak ditemukan")
 	}
 
-	helper.SuccessResponse(c, "Profile retrieved successfully", user)
+	return &user, nil
 }
 
 type UserStats struct {
@@ -335,23 +228,31 @@ type UserStats struct {
 	LatestUsers   []User `json:"latest_users"`
 }
 
-func (s *userService) GetStats(c *gin.Context) {
+func (s *userService) GetStats() (*UserStats, error) {
 	var totalUsers int64
 	var newUsersToday int64
 	var latestUsers []User
 
-	s.db.Model(&User{}).Count(&totalUsers)
+	if err := s.db.Model(&User{}).Count(&totalUsers).Error; err != nil {
+		return nil, err
+	}
 
 	today := time.Now().Format("2006-01-02")
-	s.db.Where("DATE(created_at) = ?", today).Model(&User{}).Count(&newUsersToday)
+	if err := s.db.Where("DATE(created_at) = ?", today).Model(&User{}).Count(&newUsersToday).Error; err != nil {
+		return nil, err
+	}
 
-	s.db.Order("created_at DESC").Limit(5).Find(&latestUsers)
+	if err := s.db.Order("created_at DESC").Limit(5).Find(&latestUsers).Error; err != nil {
+		return nil, err
+	}
 
-	stats := UserStats{
+	return &UserStats{
 		TotalUsers:    totalUsers,
 		NewUsersToday: newUsersToday,
 		LatestUsers:   latestUsers,
-	}
+	}, nil
+}
 
-	helper.SuccessResponse(c, "User statistics", stats)
+func (s *userService) String() string {
+	return fmt.Sprintf("userService{db:%v}", s.db)
 }

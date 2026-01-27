@@ -48,7 +48,7 @@ func JWTMiddleware() gin.HandlerFunc {
 	}
 }
 
-//middleware admin
+// middleware admin
 func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exits := c.Get("user_role")

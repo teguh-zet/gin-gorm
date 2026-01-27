@@ -13,7 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-
 func main() {
 	// helper.()
 	config, err := helper.LoadConfig(".")
@@ -38,7 +37,7 @@ func main() {
 
 		c.Next()
 	})
-	
+
 	app.GET("/", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "API service is running",
@@ -50,7 +49,7 @@ func main() {
 
 	}
 	db = db.Debug()
-seedAdmin()
+	seedAdmin()
 
 	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS public").Error; err != nil {
 		log.Fatal("Failed to create schema:", err)
