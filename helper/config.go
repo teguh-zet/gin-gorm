@@ -26,6 +26,9 @@ type Config struct {
 	ALLOW_ORIGIN string `mapstructure:"ALLOW_ORIGIN"`
 	LOG_FILE     string `mapstructure:"LOG_FILE"`
 	AUTO_MIGRATE string `mapstructure:"AUTO_MIGRATE"`
+
+	//nats 
+	NatsUrl   string `mapstructure:"NATS_URL"`
 }
 
 func LoadConfig(path string) (config Config, err error) {

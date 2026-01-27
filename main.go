@@ -7,6 +7,7 @@ import (
 
 	"gin-gonic/helper"
 	"gin-gonic/modules"
+	"gin-gonic/modules/books"
 	"gin-gonic/modules/users"
 	"gin-gonic/utils"
 
@@ -49,6 +50,15 @@ func main() {
 
 	}
 	db = db.Debug()
+	//connect NATS
+	helper.ConnectNats(config.NatsUrl)
+	if helper.NatsConn != nil{
+		defer helper.NatsConn.Close()
+	}
+	// jalanin worker book
+	bookService := books.NewBookService(db)
+	books.StartWorker(bookService)
+
 	seedAdmin()
 
 	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS public").Error; err != nil {
@@ -75,6 +85,7 @@ func seedAdmin() {
 	if err != nil {
 		log.Fatal("cannot load config")
 	}
+
 	adminEmail := config.ADMIN_EMAIL
 	adminPassword := config.AdminPassword
 	adminName := config.AdminName

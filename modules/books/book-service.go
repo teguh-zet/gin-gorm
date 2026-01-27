@@ -3,6 +3,7 @@ package books
 import (
 	"context"
 	"errors"
+	"fmt"
 	"mime/multipart"
 
 	"gin-gonic/helper"
@@ -22,6 +23,7 @@ type BookService interface {
 	BulkDelete(ids []int) error
 	Search(query string) ([]Book, error)
 	UploadImage(id string, file *multipart.FileHeader) (*Book, error)
+	IncrementPopularity(bookID uint)error
 }
 
 type bookService struct {
@@ -30,6 +32,21 @@ type bookService struct {
 
 func NewBookService(db *gorm.DB) BookService {
 	return &bookService{db: db}
+}
+func (s *bookService) IncrementPopularity(bookID uint) error {
+	// Debug log
+	fmt.Printf("⚙️ [SERVICE] Menjalankan Query Update untuk Book ID: %d\n", bookID)
+
+	// Update borrow_count + 1
+	err := s.db.Model(&Book{}).Where("id = ?", bookID).
+		Update("borrow_count", gorm.Expr("borrow_count + 1")).Error
+	
+	if err != nil {
+		fmt.Printf("❌ [SERVICE ERROR] Gorm Error: %v\n", err)
+		return err
+	}
+	
+	return nil
 }
 
 func (s *bookService) GetList() ([]Book, error) {
