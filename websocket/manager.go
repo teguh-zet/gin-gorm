@@ -5,9 +5,6 @@ import (
 	"gin-gonic/helper"
 	"log"
 	"sync"
-
-	// Sesuaikan import path ini dengan module name di go.mod Anda
-
 	"github.com/nats-io/nats.go"
 )
 
@@ -29,14 +26,47 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) Run() {
-    // 1. Subscribe ke NATS (Topic: "notifications")
-    // Ini menghubungkan NATS dengan WebSocket
-	_, err := helper.NatsConn.Subscribe("notifications", func(msg *nats.Msg) {
+	// Pastikan koneksi JetStream tersedia
+	if helper.NatsJS == nil {
+		log.Fatal("❌ ERROR: Koneksi NATS JetStream (NatsJS) belum siap/nil!")
+	}
+
+	// =================================================================
+	// UPDATE SUBSCRIBER KE JETSTREAM (Durable Consumer)
+	// =================================================================
+	// 1. Subscribe ke Topic "book.borrowed" menggunakan NatsJS (bukan NatsConn)
+	sub, err := helper.NatsJS.Subscribe("book.*", func(msg *nats.Msg) {
+		
+		// 2. ACKNOWLEDGEMENT (Konfirmasi Terima)
+		// Kita wajib lapor ke NATS bahwa pesan sudah diterima.
+		// Jika tidak di-Ack, NATS akan menganggap pesan gagal dan mengirim ulang terus.
+		if err := msg.Ack(); err != nil {
+			log.Printf("⚠️ Gagal Ack pesan: %v", err)
+			return // Jangan diproses kalau gagal Ack (opsional, tergantung strategi)
+		}
+
+		// 3. Log Debug (Agar Anda tahu pesan masuk)
+		log.Printf("📨 [WS Broadcast] Topic: %s | Data: %s", msg.Subject, string(msg.Data))
+
+		// 4. Broadcast ke Frontend
 		m.Broadcast <- msg.Data
-	})
-    if err != nil {
-        log.Printf("Error subscribing to NATS: %v", err)
-    }
+
+	}, 
+	// OPSI PENTING:
+	// nats.Durable: Membuat NATS "mengingat" posisi terakhir kita.
+	// Jika server mati lalu nyala, pesan yang terlewat akan dikirim ulang.
+	nats.Durable("WS_MANAGER_CONSUMER"), 
+	// nats.ManualAck: Kita janji akan melakukan msg.Ack() sendiri secara manual.
+	nats.ManualAck(),
+	)
+
+	if err != nil {
+		log.Printf("❌ Gagal Subscribe JetStream: %v", err)
+	} else {
+		log.Println("🚀 WebSocket Manager mendengarkan JetStream (Topic: book.borrowed)")
+		defer sub.Unsubscribe()
+	}
+	// =================================================================
 
 	for {
 		select {
@@ -44,7 +74,7 @@ func (m *Manager) Run() {
 			m.Mutex.Lock()
 			m.Clients[client] = true
 			m.Mutex.Unlock()
-			log.Printf("New client connected. UserID: %s", client.UserID)
+			log.Printf("Client Connected: %s", client.UserID)
 
 		case client := <-m.Unregister:
 			m.Mutex.Lock()
@@ -53,10 +83,9 @@ func (m *Manager) Run() {
 				close(client.Send)
 			}
 			m.Mutex.Unlock()
-			log.Printf("Client disconnected. UserID: %s", client.UserID)
+			log.Printf("Client Disconnected: %s", client.UserID)
 
 		case message := <-m.Broadcast:
-            // Mengirim pesan ke SEMUA client yang terhubung
 			m.Mutex.Lock()
 			for client := range m.Clients {
 				select {

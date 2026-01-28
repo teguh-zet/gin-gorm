@@ -37,6 +37,8 @@ func NewLoanService(db *gorm.DB) LoanService {
 	return &loanService{db: db}
 }
 
+//helper function untuk broadcast statistik (agar tidak duplikasi kode karenak dipakai oleh borrow dan return)
+
 func (s *loanService) GetStats() (*LoanStats, error) {
 	var totalLoans int64
 	var activeLoans int64
@@ -58,7 +60,30 @@ func (s *loanService) GetStats() (*LoanStats, error) {
 		ReturnedBooks:     returnedLoans,
 	}, nil
 }
+func (s*loanService) broadcastStats(){
+	//1 ambil statistik terru dati db
+	stats,err:=s.GetStats()
+	if err!=nil{
+		fmt.Printf("Gagal mengambil stats untuk broadcast : %v\n",err)
+		return
+	}
+	statsPayload :=map[string]interface{}{
+		"type":"STATS_UPDATE",
+		"data":stats,
+		"time":time.Now(),
+	}
+	jsonPayload, _:= json.Marshal(statsPayload)
 
+	if helper.NatsJS!=nil{
+		_,err:=helper.NatsJS.Publish("book.stats",jsonPayload)
+		if err != nil{
+			fmt.Printf("⚠️ Gagal publish stats: %v\n", err)
+		} else {
+			fmt.Println("📊 Stats terbaru terkirim ke JetStream!")
+		}
+	}
+
+}
 func (s *loanService) GetPopularBooks() ([]books.Book, error) {
 	var booksData []books.Book
 	if err := s.db.Order("borrow_count DESC").Limit(1).Find(&booksData).Error; err != nil {
@@ -168,41 +193,25 @@ func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
         return nil, err
     }
 
-    // // --- NATS PUBLISH (CLEAN VERSION) ---
-    // eventData := map[string]interface{}{
+ 
+	// eventData := map[string]interface{}{
     //     "book_id": input.BookID,
     //     "user_id": userID,
     // }
     // payload, _ := json.Marshal(eventData)
 
-   
-	// if helper.NatsConn != nil {
-    //     if err := helper.NatsConn.Publish("book.borrowed", payload); err != nil {
-    //         fmt.Printf("⚠️ Gagal publish event nats: %v\n", err) 
+
+    // if helper.NatsJS != nil {
+    //     // Ganti helper.NatsConn menjadi helper.NatsJS
+    //     // Tidak perlu Flush() manual, JetStream menghandle ack-nya
+    //     _, err := helper.NatsJS.Publish("book.borrowed", payload)
+        
+    //     if err != nil {
+    //         fmt.Printf("⚠️ Gagal publish JetStream: %v\n", err) 
     //     } else {
-    //          // [TAMBAHAN PENTING] Pastikan pesan didorong keluar sekarang juga
-    //          helper.NatsConn.Flush() 
-    //          fmt.Println("✅ SUKSES: Pesan NATS Terkirim & Flushed!")
+    //          fmt.Println("✅ SUKSES: Pesan tersimpan di JetStream!")
     //     }
     // }
-	eventData := map[string]interface{}{
-        "book_id": input.BookID,
-        "user_id": userID,
-    }
-    payload, _ := json.Marshal(eventData)
-
-
-    if helper.NatsJS != nil {
-        // Ganti helper.NatsConn menjadi helper.NatsJS
-        // Tidak perlu Flush() manual, JetStream menghandle ack-nya
-        _, err := helper.NatsJS.Publish("book.borrowed", payload)
-        
-        if err != nil {
-            fmt.Printf("⚠️ Gagal publish JetStream: %v\n", err) 
-        } else {
-             fmt.Println("✅ SUKSES: Pesan tersimpan di JetStream!")
-        }
-    }
     // ------------------------------------
 	// 1. Buat Payload Data untuk Frontend
     // Structure ini nanti akan diterima oleh WebSocket di browser
@@ -212,25 +221,31 @@ func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
         "data": map[string]interface{}{
             "book_id": input.BookID,
             "user_id": userID,
+			"action" : "borrow",
             "time":    time.Now(),
         },
     }
 
     // 2. Ubah ke JSON
-    payload2, _ := json.Marshal(notificationData)
+    payload, _ := json.Marshal(notificationData)
 
     // 3. Publish ke NATS
     // PENTING: Pastikan string "notifications" SAMA PERSIS dengan 
     // yang ada di manager.go (helper.NatsConn.Subscribe("notifications", ...))
-    if helper.NatsConn != nil {
-        err := helper.NatsConn.Publish("notifications", payload2)
+    if helper.NatsJS != nil {
+        _, err := helper.NatsJS.Publish("book.borrowed", payload)
+        
         if err != nil {
-            // Kita log error saja, jangan return error karena transaksi DB sudah sukses
-            fmt.Printf("⚠️ Gagal mengirim notifikasi NATS: %v\n", err)
+            // Log error tapi jangan gagalkan request user karena DB sudah sukses
+            fmt.Printf("⚠️ Gagal publish ke JetStream: %v\n", err)
         } else {
-            fmt.Println("✅ Notifikasi terkirim ke NATS topic 'notifications'")
+            fmt.Println("✅ SUKSES: Notifikasi tersimpan di JetStream & siap dikirim!")
         }
+    } else {
+        fmt.Println("❌ Error: Koneksi JetStream belum siap (nil)")
     }
+	// goroutine agar tidak memblokir response API
+	go s.broadcastStats()
 
     var fullLoan Loan
     if err := s.db.Preload("User").Preload("Book").First(&fullLoan, loan.ID).Error; err != nil {
@@ -261,8 +276,34 @@ func (s *loanService) Return(id string) error {
 		tx.Rollback()
 		return err
 	}
+	if err := tx.Commit().Error;err!=nil{
+		return err
+	}
+	// nats implementation for returning notification
+	eventData:= map[string]interface{}{
+		"type" : "BOOK_RETURNED",
+		"message":fmt.Sprintf("Buku (loan ID : %s)telah dikembalikan", id),
+		"data":map[string]interface{}{
+			"loan_id":id,
+			"book_id": loan.BookID,
+			"action":"return",
+			"time":time.Now(),
 
-	return tx.Commit().Error
+		},
+	}
+	payload,_:= json.Marshal(eventData)
+
+	if helper.NatsJS != nil{
+		_,err := helper.NatsJS.Publish("book_returned", payload)
+		if err!=nil{
+			fmt.Printf("GAGAL PUBLISH RETURN EVENT: %v\n",err)
+		}else{
+			fmt.Println("NOTIFIKASI RETURN TERSIMPAN DI JETSTREAM")
+		}
+	}
+	go s.broadcastStats()
+
+	return nil
 }
 
 func (s *loanService) GetMy(userID uint) ([]Loan, error) {

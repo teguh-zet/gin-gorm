@@ -65,6 +65,7 @@ func (c *bookController) GetByID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, book)
 }
 
+
 func (c *bookController) Create(ctx *gin.Context) {
 	var input CreateBookRequest
 	if err := ctx.ShouldBindJSON(&input); err != nil {
