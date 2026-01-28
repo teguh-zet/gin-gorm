@@ -191,7 +191,7 @@ func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
     }
     payload, _ := json.Marshal(eventData)
 
-	
+
     if helper.NatsJS != nil {
         // Ganti helper.NatsConn menjadi helper.NatsJS
         // Tidak perlu Flush() manual, JetStream menghandle ack-nya
@@ -204,6 +204,33 @@ func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
         }
     }
     // ------------------------------------
+	// 1. Buat Payload Data untuk Frontend
+    // Structure ini nanti akan diterima oleh WebSocket di browser
+    notificationData := map[string]interface{}{
+        "type":    "NEW_LOAN", // Penanda tipe event
+        "message": fmt.Sprintf("User ID %d baru saja meminjam buku ID %d", userID, input.BookID),
+        "data": map[string]interface{}{
+            "book_id": input.BookID,
+            "user_id": userID,
+            "time":    time.Now(),
+        },
+    }
+
+    // 2. Ubah ke JSON
+    payload2, _ := json.Marshal(notificationData)
+
+    // 3. Publish ke NATS
+    // PENTING: Pastikan string "notifications" SAMA PERSIS dengan 
+    // yang ada di manager.go (helper.NatsConn.Subscribe("notifications", ...))
+    if helper.NatsConn != nil {
+        err := helper.NatsConn.Publish("notifications", payload2)
+        if err != nil {
+            // Kita log error saja, jangan return error karena transaksi DB sudah sukses
+            fmt.Printf("⚠️ Gagal mengirim notifikasi NATS: %v\n", err)
+        } else {
+            fmt.Println("✅ Notifikasi terkirim ke NATS topic 'notifications'")
+        }
+    }
 
     var fullLoan Loan
     if err := s.db.Preload("User").Preload("Book").First(&fullLoan, loan.ID).Error; err != nil {
