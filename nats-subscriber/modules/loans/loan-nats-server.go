@@ -80,28 +80,10 @@ func (s *loanNatsServer) Init(svr chan string) {
 }
 
 func processMsg(m *nats.Msg, ctrl LoanNatsController) {
-	pl := PayloadLoan{}
-	var wrapper struct {
-		Data struct {
-			BookID uint `json:"book_id"`
-			UserID uint `json:"user_id"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(m.Data, &pl); err != nil {
-		if err2 := json.Unmarshal(m.Data, &wrapper); err2 != nil {
-			log.Printf("Error unmarshalling message: %v", err2)
-			return
-		}
-		pl.BookID = wrapper.Data.BookID
-		pl.UserID = wrapper.Data.UserID
-	} else {
-		if pl.BookID == 0 && pl.UserID == 0 {
-			if err2 := json.Unmarshal(m.Data, &wrapper); err2 == nil {
-				pl.BookID = wrapper.Data.BookID
-				pl.UserID = wrapper.Data.UserID
-			}
-		}
+	pl, ok := parsePayload(m.Data)
+	if !ok {
+		log.Printf("Payload tidak valid: %s", string(m.Data))
+		return
 	}
 
 	switch m.Subject {
@@ -111,5 +93,79 @@ func processMsg(m *nats.Msg, ctrl LoanNatsController) {
 		ctrl.ProcessReturn(pl)
 	default:
 		log.Printf("Unknown subject: %s", m.Subject)
+	}
+}
+
+func parsePayload(data []byte) (PayloadLoan, bool) {
+	pl := PayloadLoan{}
+	if err := json.Unmarshal(data, &pl); err == nil {
+		if pl.BookID != 0 || pl.UserID != 0 {
+			return pl, true
+		}
+	}
+
+	var env struct {
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(data, &env); err == nil && len(env.Data) > 0 {
+		if err := json.Unmarshal(env.Data, &pl); err == nil {
+			if pl.BookID != 0 || pl.UserID != 0 {
+				return pl, true
+			}
+		}
+
+		var m map[string]interface{}
+		if err := json.Unmarshal(env.Data, &m); err == nil {
+			if v, ok := m["book_id"]; ok {
+				pl.BookID = toUint(v)
+			}
+			if v, ok := m["user_id"]; ok {
+				pl.UserID = toUint(v)
+			}
+			if pl.BookID != 0 || pl.UserID != 0 {
+				return pl, true
+			}
+		}
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(data, &m); err == nil {
+		if v, ok := m["book_id"]; ok {
+			pl.BookID = toUint(v)
+		}
+		if v, ok := m["user_id"]; ok {
+			pl.UserID = toUint(v)
+		}
+		if pl.BookID != 0 || pl.UserID != 0 {
+			return pl, true
+		}
+	}
+
+	return PayloadLoan{}, false
+}
+
+func toUint(v interface{}) uint {
+	switch t := v.(type) {
+	case float64:
+		if t < 0 {
+			return 0
+		}
+		return uint(t)
+	case int:
+		if t < 0 {
+			return 0
+		}
+		return uint(t)
+	case int64:
+		if t < 0 {
+			return 0
+		}
+		return uint(t)
+	case uint:
+		return t
+	case uint64:
+		return uint(t)
+	default:
+		return 0
 	}
 }
