@@ -32,6 +32,7 @@ func (service *loanNatsService) ProcessBorrow(payload PayloadLoan) {
 	logEntry := LoanLog{
 		BookID:    payload.BookID,
 		UserID:    payload.UserID,
+		LoanID: payload.LoanID,
 		Action:    "BORROW",
 		CreatedAt: time.Now(),
 	}
@@ -50,7 +51,7 @@ func (service *loanNatsService) ProcessReturn(payload PayloadLoan) {
 	log.Printf("Processing Return Event: %+v", payload)
 
 	logEntry := LoanLog{
-		
+		LoanID: payload.LoanID,
 		BookID:    payload.BookID,
 		UserID:    payload.UserID,
 		Action:    "RETURN",

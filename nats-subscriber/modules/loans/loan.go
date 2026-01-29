@@ -10,7 +10,7 @@ type PayloadLoan struct {
 
 type LoanLog struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	LoandID   uint      `json:"loan_id"`
+	LoanID    uint      `json:"loan_id"`
 	BookID    uint      `json:"book_id"`
 	UserID    uint      `json:"user_id"`
 	Action    string    `json:"action"` // "BORROW" or "RETURN"
