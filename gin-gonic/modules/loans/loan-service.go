@@ -266,6 +266,7 @@ func (s *loanService) Return(id string) error {
 		"data": map[string]interface{}{
 			"loan_id": id,
 			"book_id": loan.BookID,
+			"user_id": loan.UserID,
 			"action":  "return",
 			"time":    time.Now(),
 		},
