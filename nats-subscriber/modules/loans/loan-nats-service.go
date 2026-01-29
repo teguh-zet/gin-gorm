@@ -50,6 +50,7 @@ func (service *loanNatsService) ProcessReturn(payload PayloadLoan) {
 	log.Printf("Processing Return Event: %+v", payload)
 
 	logEntry := LoanLog{
+		
 		BookID:    payload.BookID,
 		UserID:    payload.UserID,
 		Action:    "RETURN",

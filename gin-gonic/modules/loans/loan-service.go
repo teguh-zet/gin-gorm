@@ -196,19 +196,27 @@ func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
 
 	// 1. Buat Payload Data untuk Frontend
 	// Structure ini nanti akan diterima oleh WebSocket di browser
-	notificationData := map[string]interface{}{
-		"type":    "NEW_LOAN", // Penanda tipe event
-		"message": fmt.Sprintf("User ID %d baru saja meminjam buku ID %d", userID, input.BookID),
-		"data": map[string]interface{}{
-			"book_id": input.BookID,
-			"user_id": userID,
-			"action":  "borrow",
-			"time":    time.Now(),
-		},
+	// notificationData := map[string]interface{}{
+	// 	"type":    "NEW_LOAN", // Penanda tipe event
+	// 	"message": fmt.Sprintf("User ID %d baru saja meminjam buku ID %d", userID, input.BookID),
+	// 	"data": map[string]interface{}{
+	// 		"book_id": input.BookID,
+	// 		"user_id": userID,
+	// 		"action":  "borrow",
+	// 		"time":    time.Now(),
+	// 	},
+	// }
+	// data flat lebih sederhana tanpa perlu parsing
+	natsPayload := map[string]interface{}{
+		"book_id": input.BookID,
+		"user_id": userID,
+		"action":  "borrow",
+		"loan_id": loan.ID,
+		"time":    time.Now(),
 	}
 
 	// 2. Ubah ke JSON
-	dataJson, err := json.Marshal(notificationData)
+	dataJson, err := json.Marshal(natsPayload)
 	if err != nil {
 		fmt.Printf("gagal mengkonversi data ke JSON: %v\n", err)
 	}
@@ -260,18 +268,26 @@ func (s *loanService) Return(id string) error {
 		return err
 	}
 	// nats implementation for returning notification
-	eventData := map[string]interface{}{
-		"type":    "BOOK_RETURNED",
-		"message": fmt.Sprintf("Buku (loan ID : %s)telah dikembalikan", id),
-		"data": map[string]interface{}{
-			"loan_id": id,
-			"book_id": loan.BookID,
-			"user_id": loan.UserID,
-			"action":  "return",
-			"time":    time.Now(),
-		},
+	// eventData := map[string]interface{}{
+	// 	"type":    "BOOK_RETURNED",
+	// 	"message": fmt.Sprintf("Buku (loan ID : %s)telah dikembalikan", id),
+	// 	"data": map[string]interface{}{
+	// 		"loan_id": id,
+	// 		"book_id": loan.BookID,
+	// 		"user_id": loan.UserID,
+	// 		"action":  "return",
+	// 		"time":    time.Now(),
+	// 	},
+	// }
+
+	natsPayload := map[string]interface{}{
+		"book_id": loan.BookID,
+		"user_id": loan.UserID,
+		"loan_id": id,
+		"action":  "return",
+		"time":    time.Now(),
 	}
-	dataJson, err := json.Marshal(eventData)
+	dataJson, err := json.Marshal(natsPayload)
 	if err != nil {
 		fmt.Printf("gagal mengkonversi data ke JSON: %v\n", err)
 	}
