@@ -93,73 +93,7 @@ func (s *loanService) GetPopularBooks() ([]books.Book, error) {
 	return booksData, nil
 }
 
-// func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
-// 	var book books.Book
-// 	if err := s.db.First(&book, input.BookID).Error; err != nil {
-// 		return nil, errors.New("book not found")
-// 	}
-// 	if book.Stock <= 0 {
-// 		return nil, errors.New("stok habis")
-// 	}
 
-// 	tx := s.db.Begin()
-
-// 	if err := tx.Model(&books.Book{}).Where("id = ?", input.BookID).
-// 		Update("stock", gorm.Expr("stock - ?", 1)).Error; err != nil {
-// 		tx.Rollback()
-// 		return nil, err
-// 	}
-
-// 	loan := Loan{
-// 		UserID:     userID,
-// 		BookID:     input.BookID,
-// 		LoanDate:   time.Now(),
-// 		ReturnDate: time.Now().AddDate(0, 0, 7),
-// 		Status:     "borrowed",
-// 	}
-
-// 	if err := tx.Create(&loan).Error; err != nil {
-// 		tx.Rollback()
-// 		return nil, err
-// 	}
-// 	//mengganti nats yang lebih ringan
-// 	// if err := tx.Model(&books.Book{}).Where("id = ?", input.BookID).
-// 	// 	Update("borrow_count", gorm.Expr("borrow_count + ?", 1)).Error; err != nil {
-// 	// 	tx.Rollback()
-// 	// 	return nil, err
-// 	// }
-
-// 	if err := tx.Commit().Error; err != nil {
-// 		return nil, err
-// 	}
-// 	// ======================================================
-// 	// DEBUGGING AREA - CEK DISINI
-// 	// ======================================================
-// 	fmt.Println("👉 DEBUG: Transaksi DB Selesai. Mencoba Publish NATS...")
-
-// 	eventData := map[string]interface{}{
-// 		"book_id": input.BookID,
-// 		"user_id": userID,
-// 	}
-// 	payload, _ := json.Marshal(eventData)
-
-// 	if helper.NatsConn == nil {
-// 		fmt.Println("❌ ERROR: helper.NatsConn is NIL (Kosong) di Loan Service!")
-// 	} else {
-// 		err := helper.NatsConn.Publish("book.borrowed", payload)
-// 		if err != nil {
-// 			fmt.Printf("❌ ERROR: Gagal Publish NATS: %v\n", err)
-// 		} else {
-// 			fmt.Println("✅ SUKSES: Pesan NATS Terkirim ke topik 'book.borrowed'!")
-// 		}
-// 	}
-// 	var fullLoan Loan
-// 	if err := s.db.Preload("User").Preload("Book").First(&fullLoan, loan.ID).Error; err != nil {
-// 		return nil, err
-// 	}
-
-//		return &fullLoan, nil
-//	}
 func (s *loanService) Borrow(userID uint, input *LoanRequest) (*Loan, error) {
 	var book books.Book
 	if err := s.db.First(&book, input.BookID).Error; err != nil {
