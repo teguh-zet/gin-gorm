@@ -283,7 +283,7 @@ func (s *loanService) Return(id string) error {
 	natsPayload := map[string]interface{}{
 		"book_id": loan.BookID,
 		"user_id": loan.UserID,
-		"loan_id": id,
+		"loan_id": loan.ID,
 		"action":  "return",
 		"time":    time.Now(),
 	}
